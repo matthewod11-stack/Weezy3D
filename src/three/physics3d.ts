@@ -263,14 +263,22 @@ function stepOnce(
     s.vx = s.vx + (targetVx * PHYSICS.AIR_SPEED_MULT - s.vx) * PHYSICS.AIR_BLEND;
   }
 
-  // Asymmetric gravity: floaty rise near apex, heavy fall.
-  let g: number;
-  if (s.vy < 0) {
-    g = Math.abs(s.vy) < PHYSICS.APEX_VY_THRESHOLD ? PHYSICS.GRAVITY_APEX : PHYSICS.GRAVITY_UP;
+  // Wall-climb: hold Up while overlapping a climbWall zone with the ability unlocked.
+  const climbing =
+    env.unlocked.has("wallClimb") && input.up === true && ctx.onClimbableWall;
+
+  if (climbing) {
+    s.vy = -scaled(ABILITIES.wallClimb.traversal?.climbSpeed);
   } else {
-    g = PHYSICS.GRAVITY_DOWN;
+    // Asymmetric gravity: floaty rise near apex, heavy fall.
+    let g: number;
+    if (s.vy < 0) {
+      g = Math.abs(s.vy) < PHYSICS.APEX_VY_THRESHOLD ? PHYSICS.GRAVITY_APEX : PHYSICS.GRAVITY_UP;
+    } else {
+      g = PHYSICS.GRAVITY_DOWN;
+    }
+    s.vy += g * dt;
   }
-  s.vy += g * dt;
 
   // ── Integrate + collide, axis-separated ────────────────────────────────
   // X

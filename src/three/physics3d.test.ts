@@ -35,6 +35,47 @@ function frames(
   return cur;
 }
 
+function frames3(s: PlayerState, n: number, input: Partial<FrameInput>, solids: PhysRect[], env: PowerEnv): PlayerState {
+  let cur = s;
+  for (let i = 0; i < n; i += 1) cur = stepPlayer(cur, { ...idle, ...input }, STEP, solids, env);
+  return cur;
+}
+
+describe("stepPlayer — wall-climb", () => {
+  const CLIMB_VY = ABILITIES.wallClimb.traversal!.climbSpeed! * RENDER_SCALE;
+  function climbEnv(): PowerEnv {
+    return {
+      unlocked: new Set<AbilityId>(["wallClimb"]),
+      climbWalls: [{ x: -50, y: FLOOR_Y - 400, w: 100, h: 400 }],
+      breakables: [],
+    };
+  }
+
+  it("ascends at climbSpeed while up is held on a wall", () => {
+    let s = settleOnFloor();
+    const env = climbEnv();
+    const y0 = s.y;
+    s = stepPlayer(s, { ...idle, up: true }, STEP, [FLOOR], env);
+    expect(s.vy).toBeCloseTo(-CLIMB_VY, 0);
+    s = frames3(s, 10, { up: true }, [FLOOR], env);
+    expect(s.y).toBeLessThan(y0);
+  });
+
+  it("does not climb without the ability", () => {
+    let s = settleOnFloor();
+    const env = { ...climbEnv(), unlocked: new Set<AbilityId>() };
+    s = stepPlayer(s, { ...idle, up: true }, STEP, [FLOOR], env);
+    expect(s.vy).toBeGreaterThanOrEqual(0);
+  });
+
+  it("does not climb off the wall even with up held", () => {
+    let s = settleOnFloor();
+    const env: PowerEnv = { unlocked: new Set<AbilityId>(["wallClimb"]), climbWalls: [{ x: 9000, y: 0, w: 10, h: 10 }], breakables: [] };
+    s = stepPlayer(s, { ...idle, up: true }, STEP, [FLOOR], env);
+    expect(s.onGround).toBe(true);
+  });
+});
+
 function settleOnFloor(): PlayerState {
   let s = createPlayerState(0, FLOOR_Y - 2);
   s = frames(s, 5, {}, [FLOOR]);
