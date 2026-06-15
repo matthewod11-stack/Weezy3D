@@ -13,17 +13,19 @@ import type { FrameInput } from "./physics3d";
  *
  * Mapping (W3C "standard" button indices):
  *   0  bottom face (A / cross / 8BitDo "B")  → JUMP
- *   1  right face  (B / circle / 8BitDo "A") → reserved for POWER once
- *                                              traversal powers port to 3D
- *                                              (playbook §5.4)
+ *   1  right face  (B / circle / 8BitDo "A") → POWER (dash / charge / glide /
+ *                                              wall-climb context dispatch)
  *   14 D-pad left   15 D-pad right
  *   axis 0 = left stick X (-1 left … +1 right)
+ *   axis 1 = left stick Y (-1 up … +1 down)
  */
 
 const BTN_JUMP = 0;
+const BTN_POWER = 1;
 const BTN_DPAD_LEFT = 14;
 const BTN_DPAD_RIGHT = 15;
 const AXIS_LX = 0;
+const AXIS_LY = 1;
 /** Generous stick deadzone — kids' thumbs + Bluetooth drift. */
 const STICK_DEADZONE = 0.35;
 
@@ -35,15 +37,17 @@ const STICK_DEADZONE = 0.35;
  */
 const AXIS_HAT = 9;
 
-/** Decode a HID 8-way hat value into horizontal direction booleans. */
-function decodeHat(v: number): { left: boolean; right: boolean } {
+/** Decode a HID 8-way hat value into directional booleans. */
+function decodeHat(v: number): { left: boolean; right: boolean; up: boolean; down: boolean } {
   // Released: out-of-band neutral (~1.29 / 3.29) OR an uninitialized 0 reading
   // (which the formula below would otherwise round to "down").
-  if (v > 1.05 || v < -1.05 || Math.abs(v) < 0.05) return { left: false, right: false };
+  if (v > 1.05 || v < -1.05 || Math.abs(v) < 0.05) return { left: false, right: false, up: false, down: false };
   // Nearest of 8 positions, clockwise from UP: 0=U 1=UR 2=R 3=DR 4=D 5=DL 6=L 7=UL.
   const idx = Math.round(((v + 1) / 2) * 7) % 8;
   return {
+    up: idx === 0 || idx === 1 || idx === 7,
     right: idx === 1 || idx === 2 || idx === 3,
+    down: idx === 3 || idx === 4 || idx === 5,
     left: idx === 5 || idx === 6 || idx === 7,
   };
 }
@@ -56,9 +60,10 @@ export interface GamepadSnapshot {
   axes: ReadonlyArray<number>;
 }
 
-/** Cross-frame state for edge detection (jump press/release). */
+/** Cross-frame state for edge detection (jump + power press/release). */
 export interface GamepadEdgeState {
   jumpDown: boolean;
+  powerDown: boolean;
 }
 
 const NEUTRAL: FrameInput = {
@@ -66,6 +71,9 @@ const NEUTRAL: FrameInput = {
   right: false,
   jumpPressed: false,
   jumpReleased: false,
+  up: false,
+  powerPressed: false,
+  powerHeld: false,
 };
 
 function held(snapshot: GamepadSnapshot, index: number): boolean {
@@ -81,29 +89,38 @@ export function readGamepadFrame(
   snapshot: GamepadSnapshot | null,
   prev: GamepadEdgeState,
 ): { input: FrameInput; next: GamepadEdgeState } {
-  // Disconnected: neutral input, and clear held jump so a reconnect-while-held
+  // Disconnected: neutral input, and clear held edges so a reconnect-while-held
   // fires a fresh press rather than a phantom release.
   if (!snapshot) {
-    return { input: { ...NEUTRAL }, next: { jumpDown: false } };
+    return { input: { ...NEUTRAL }, next: { jumpDown: false, powerDown: false } };
   }
 
   const x = snapshot.axes[AXIS_LX] ?? 0;
+  const y = snapshot.axes[AXIS_LY] ?? 0;
   // D-pad: standard pads use buttons 14/15; non-standard pads (8BitDo over BT)
   // route it through the hat axis. Either way it ORs with the analog stick.
   const dpad =
     snapshot.mapping === "standard"
-      ? { left: held(snapshot, BTN_DPAD_LEFT), right: held(snapshot, BTN_DPAD_RIGHT) }
+      ? { left: held(snapshot, BTN_DPAD_LEFT), right: held(snapshot, BTN_DPAD_RIGHT), up: false, down: false }
       : decodeHat(snapshot.axes[AXIS_HAT] ?? 0);
   const left = dpad.left || x < -STICK_DEADZONE;
   const right = dpad.right || x > STICK_DEADZONE;
+  const up = dpad.up || y < -STICK_DEADZONE;
 
   const jumpDown = held(snapshot, BTN_JUMP);
-  const jumpPressed = jumpDown && !prev.jumpDown;
-  const jumpReleased = !jumpDown && prev.jumpDown;
+  const powerDown = held(snapshot, BTN_POWER);
 
   return {
-    input: { left, right, jumpPressed, jumpReleased },
-    next: { jumpDown },
+    input: {
+      left,
+      right,
+      up,
+      jumpPressed: jumpDown && !prev.jumpDown,
+      jumpReleased: !jumpDown && prev.jumpDown,
+      powerPressed: powerDown && !prev.powerDown,
+      powerHeld: powerDown,
+    },
+    next: { jumpDown, powerDown },
   };
 }
 
@@ -119,7 +136,7 @@ const browserGamepads: GetGamepads = () =>
  * frame and produces a FrameInput, OR-merged with the keyboard by the caller.
  */
 export class GamepadInput {
-  private prev: GamepadEdgeState = { jumpDown: false };
+  private prev: GamepadEdgeState = { jumpDown: false, powerDown: false };
   private enabled = true;
 
   constructor(private readonly getGamepads: GetGamepads = browserGamepads) {}
@@ -127,7 +144,7 @@ export class GamepadInput {
   /** Win/lose overlays freeze input without losing the listener. */
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    if (!enabled) this.prev = { jumpDown: false };
+    if (!enabled) this.prev = { jumpDown: false, powerDown: false };
   }
 
   /** First connected pad, or null. (Multiple pads → player one.) */
@@ -143,7 +160,7 @@ export class GamepadInput {
 
   readFrame(): FrameInput {
     if (!this.enabled) {
-      this.prev = { jumpDown: false };
+      this.prev = { jumpDown: false, powerDown: false };
       return { ...NEUTRAL };
     }
     const { input, next } = readGamepadFrame(this.active(), this.prev);

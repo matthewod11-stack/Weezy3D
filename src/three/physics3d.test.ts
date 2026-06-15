@@ -208,3 +208,19 @@ describe("overlap helpers", () => {
     expect(touchesRect(s, { x: s.x + 500, y: s.y - 20, w: 40, h: 40 })).toBe(false);
   });
 });
+
+describe("stepPlayer — power foundation (no behavior yet)", () => {
+  it("ignores powers when no env is passed (base feel preserved)", () => {
+    let s = settleOnFloor();
+    s = stepPlayer(s, { ...idle, up: true, powerPressed: true, powerHeld: true }, STEP, [FLOOR]);
+    expect(s.onGround).toBe(true);
+    expect(s.vy).toBe(0);
+  });
+
+  it("createPlayerState initializes power fields", () => {
+    const s = createPlayerState(0, 0);
+    expect(s.airJumpsUsed).toBe(0);
+    expect(s.dashMsRemaining).toBe(0);
+    expect(s.justSmashed).toBe(-1);
+  });
+});

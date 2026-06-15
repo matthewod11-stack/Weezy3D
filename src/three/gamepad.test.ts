@@ -32,7 +32,7 @@ function padHid(axis9: number, down: number[] = []): GamepadSnapshot {
   };
 }
 
-const NO_EDGE: GamepadEdgeState = { jumpDown: false };
+const NO_EDGE: GamepadEdgeState = { jumpDown: false, powerDown: false };
 
 describe("readGamepadFrame — movement", () => {
   it("yields neutral input when no gamepad is connected", () => {
@@ -42,6 +42,9 @@ describe("readGamepadFrame — movement", () => {
       right: false,
       jumpPressed: false,
       jumpReleased: false,
+      up: false,
+      powerPressed: false,
+      powerHeld: false,
     });
   });
 
@@ -135,5 +138,27 @@ describe("readGamepadFrame — disconnection", () => {
     const gone = readGamepadFrame(null, held.next);
     expect(gone.input.jumpReleased).toBe(false);
     expect(gone.next.jumpDown).toBe(false); // reconnect-while-held re-fires a fresh press
+  });
+});
+
+describe("readGamepadFrame — power button + hat up", () => {
+  const base = { id: "pad", mapping: "", buttons: Array(16).fill({ pressed: false }), axes: Array(10).fill(0) };
+
+  it("button 1 fires powerPressed on the down edge, powerHeld while held", () => {
+    const down = { ...base, buttons: base.buttons.map((b, i) => (i === 1 ? { pressed: true } : b)) };
+    const r1 = readGamepadFrame(down, { jumpDown: false, powerDown: false });
+    expect(r1.input.powerPressed).toBe(true);
+    expect(r1.input.powerHeld).toBe(true);
+    const r2 = readGamepadFrame(down, r1.next);
+    expect(r2.input.powerPressed).toBe(false);
+    expect(r2.input.powerHeld).toBe(true);
+  });
+
+  it("decodes hat UP (-1) to up", () => {
+    const up = { ...base, axes: base.axes.map((a, i) => (i === 9 ? -1 : a)) };
+    const r = readGamepadFrame(up, { jumpDown: false, powerDown: false });
+    expect(r.input.up).toBe(true);
+    expect(r.input.left).toBe(false);
+    expect(r.input.right).toBe(false);
   });
 });

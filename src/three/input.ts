@@ -20,6 +20,7 @@ export class KeyboardInput {
     "KeyD",
     "KeyW",
     "KeyS",
+    "KeyX",
     "Space",
   ]);
 
@@ -80,6 +81,9 @@ export class KeyboardInput {
       right: this.held.has("ArrowRight") || this.held.has("KeyD"),
       jumpPressed: this.pressed.has("Space"),
       jumpReleased: this.released.has("Space"),
+      up: this.held.has("ArrowUp") || this.held.has("KeyW"),
+      powerPressed: this.pressed.has("KeyX"),
+      powerHeld: this.held.has("KeyX"),
     };
     this.pressed.clear();
     this.released.clear();

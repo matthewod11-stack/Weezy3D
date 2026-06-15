@@ -1,5 +1,6 @@
 import { PHYSICS } from "../config/physics";
 import { RENDER_SCALE } from "../config/game";
+import { type AbilityId } from "../config/abilities";
 
 /**
  * Pure platformer physics for the 3D renderer — no Phaser, no Three.js.
@@ -26,6 +27,12 @@ export interface FrameInput {
   jumpPressed: boolean;
   /** Edge: jump key went up this frame. */
   jumpReleased: boolean;
+  /** Held — wall-climb ascent (W / ArrowUp / stick-up). */
+  up?: boolean;
+  /** Edge — dash / charge trigger (X / gamepad button 1). */
+  powerPressed?: boolean;
+  /** Held — glide clamp. */
+  powerHeld?: boolean;
 }
 
 export interface PlayerState {
@@ -42,7 +49,27 @@ export interface PlayerState {
   justLanded: boolean;
   /** True only on the frame a jump fired. */
   justJumped: boolean;
+  /** Extra mid-air jumps used since leaving the ground (double-jump). */
+  airJumpsUsed: number;
+  /** Remaining dash velocity-override window in ms (>0 while dashing). */
+  dashMsRemaining: number;
+  /** One-frame: index of the breakable smashed this frame, or -1. */
+  justSmashed: number;
+  /** One-frame view/sfx hooks. */
+  justAirJumped: boolean;
+  justDashed: boolean;
 }
+
+/** Runtime power context for stepPlayer. Optional — absent => no powers run.
+ *  `breakables` is mutated in place: a smashed entry is nulled (the caller's
+ *  destructible world state). `unlocked` gates every power. */
+export interface PowerEnv {
+  unlocked: Set<AbilityId>;
+  climbWalls: readonly PhysRect[];
+  breakables: (PhysRect | null)[];
+}
+
+const NO_POWERS: PowerEnv = { unlocked: new Set(), climbWalls: [], breakables: [] };
 
 /** Same body box as the 2D Player (10×22 design px, scaled). */
 export const BODY_W = 10 * RENDER_SCALE;
@@ -65,6 +92,11 @@ export function createPlayerState(x: number, y: number): PlayerState {
     facing: 1,
     justLanded: false,
     justJumped: false,
+    airJumpsUsed: 0,
+    dashMsRemaining: 0,
+    justSmashed: -1,
+    justAirJumped: false,
+    justDashed: false,
   };
 }
 
@@ -92,28 +124,46 @@ export function stepPlayer(
   input: FrameInput,
   deltaMs: number,
   solids: readonly PhysRect[],
+  env: PowerEnv = NO_POWERS,
 ): PlayerState {
   const total = Math.min(deltaMs, MAX_DELTA_MS);
   const steps = Math.max(1, Math.round(total / SUBSTEP_MS));
   const stepMs = total / steps;
 
-  let s: PlayerState = { ...prev, justLanded: false, justJumped: false };
+  let s: PlayerState = {
+    ...prev,
+    justLanded: false,
+    justJumped: false,
+    justAirJumped: false,
+    justDashed: false,
+    justSmashed: -1,
+  };
   let landed = false;
   let jumped = false;
+  let airJumped = false;
+  let dashed = false;
+  let smashed = -1;
   for (let i = 0; i < steps; i += 1) {
-    // Edge inputs only fire on the first substep; held inputs persist.
     const sub = i === 0 ? input : { ...input, ...edgeless() };
-    s = stepOnce(s, sub, stepMs, solids);
+    s = stepOnce(s, sub, stepMs, solids, env);
     landed ||= s.justLanded;
     jumped ||= s.justJumped;
+    airJumped ||= s.justAirJumped;
+    dashed ||= s.justDashed;
+    if (smashed < 0 && s.justSmashed >= 0) smashed = s.justSmashed;
   }
-  // One-frame flags accumulate across substeps — a jump in substep 1 of 2
-  // must still be visible to the caller after substep 2.
-  return { ...s, justLanded: landed, justJumped: jumped };
+  return {
+    ...s,
+    justLanded: landed,
+    justJumped: jumped,
+    justAirJumped: airJumped,
+    justDashed: dashed,
+    justSmashed: smashed,
+  };
 }
 
-function edgeless(): Pick<FrameInput, "jumpPressed" | "jumpReleased"> {
-  return { jumpPressed: false, jumpReleased: false };
+function edgeless(): Pick<FrameInput, "jumpPressed" | "jumpReleased" | "powerPressed"> {
+  return { jumpPressed: false, jumpReleased: false, powerPressed: false };
 }
 
 function stepOnce(
@@ -121,9 +171,14 @@ function stepOnce(
   input: FrameInput,
   deltaMs: number,
   solids: readonly PhysRect[],
+  env: PowerEnv,
 ): PlayerState {
   const dt = deltaMs / 1000;
   const s: PlayerState = { ...prev };
+
+  s.justAirJumped = false;
+  s.justDashed = false;
+  s.justSmashed = -1;
 
   const wasOnGround = s.onGround;
 
@@ -215,6 +270,10 @@ function stepOnce(
   }
 
   s.justLanded = s.onGround && !wasOnGround;
+
+  // env is threaded through for Tasks 1–5 (power behavior). Unused here.
+  void env;
+
   return s;
 }
 
