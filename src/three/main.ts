@@ -16,7 +16,6 @@ import {
 } from "./physics3d";
 import { abilitiesForArea } from "../config/gating";
 import type { AbilityId } from "../config/abilities";
-import type { AreaId } from "../config/areas";
 import { animateExit, animateTokens, buildLevel } from "./level3d";
 import { themeForArea } from "./worldThemes";
 import { PlayerView } from "./playerView";
@@ -144,13 +143,10 @@ async function boot(): Promise<void> {
   // Seeded from the area's expected loadout; checkCompanion() grants the home
   // companion's power on pickup. breakables is the destructible world state the
   // sim mutates (nulled on smash) — kept 1:1 with build.breakables by order.
-  let unlocked: Set<AbilityId> = abilitiesForArea(world.areaId as AreaId);
-  let breakables: (PhysRect | null)[] = (level.breakables ?? []).map((b) => ({
-    x: b.x,
-    y: b.y,
-    w: b.w,
-    h: b.h,
-  }));
+  let unlocked: Set<AbilityId> = abilitiesForArea(world.areaId);
+  const freshBreakables = (): (PhysRect | null)[] =>
+    (level.breakables ?? []).map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+  let breakables: (PhysRect | null)[] = freshBreakables();
 
   const input = new KeyboardInput();
   input.attach();
@@ -192,8 +188,8 @@ async function boot(): Promise<void> {
     // Power state: re-seed the loadout, rebuild the destructible world, and
     // re-show every breakable mesh (gotcha #12 — symmetric show path for the
     // smash's hide, else a "Play again" leaves rebuilt barricades invisible).
-    unlocked = abilitiesForArea(world.areaId as AreaId);
-    breakables = (level.breakables ?? []).map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+    unlocked = abilitiesForArea(world.areaId);
+    breakables = freshBreakables();
     for (const br of build.breakables) br.mesh.visible = true;
     playerView.group.visible = true;
     input.setEnabled(true);

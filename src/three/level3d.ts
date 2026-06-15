@@ -151,20 +151,23 @@ function buildShelfLip(p: LevelData["platforms"][number], surfaces: WorldSurface
 const CLIMB_Z = 0.05;
 function buildClimbWall(w: { x: number; y: number; w: number; h: number }): THREE.Mesh {
   const geo = new THREE.BoxGeometry(toWorldLen(w.w), toWorldLen(w.h), 0.4);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x6b8f5a, roughness: 0.9 }); // vine/lattice green
+  const mat = new THREE.MeshLambertMaterial({ color: 0x6b8f5a }); // vine/lattice green
   const mesh = new THREE.Mesh(geo, mat);
   const c = rectCenterWorld(w);
-  mesh.position.set(c.cx, c.cy, CLIMB_Z - 0.2); // back behind the gameplay plane
+  // front face at +0.05 (behind player +0.06); box depth 0.4 extends back to -0.35
+  mesh.position.set(c.cx, c.cy, CLIMB_Z - 0.2);
+  mesh.receiveShadow = true; // thin panel behind the plane — takes shadow, doesn't cast
   return mesh;
 }
 
 function buildBreakable(b: { x: number; y: number; w: number; h: number }): THREE.Mesh {
   const geo = new THREE.BoxGeometry(toWorldLen(b.w), toWorldLen(b.h), 1.4);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xb07a3c, roughness: 0.8 }); // crate/barricade
+  const mat = new THREE.MeshLambertMaterial({ color: 0xb07a3c }); // crate/barricade
   const mesh = new THREE.Mesh(geo, mat);
   const c = rectCenterWorld(b);
   mesh.position.set(c.cx, c.cy, -0.7); // solid, extends backward from ~0
   mesh.castShadow = true;
+  mesh.receiveShadow = true;
   return mesh;
 }
 

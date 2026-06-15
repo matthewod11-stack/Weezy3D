@@ -1,5 +1,6 @@
 import type { LevelCatalogEntry } from "../levels/levelCatalog";
 import type { LevelData, PlatformDef } from "../types/level";
+import type { AreaId } from "../config/areas";
 
 /**
  * World stitcher — turns a world's N catalog levels into ONE continuous
@@ -38,7 +39,7 @@ export interface StitchedWorld {
 }
 
 export interface WorldEntry {
-  areaId: string;
+  areaId: AreaId;
   entries: LevelCatalogEntry[];
   /** Index of this world's first level in the flat LEVEL_CATALOG. */
   firstIndex: number;

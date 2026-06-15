@@ -5,9 +5,10 @@ import { KITCHEN_LEVELS } from "./kitchenLevels";
 import { FAMILY_ROOM_LEVELS } from "./familyRoomLevels";
 import { BACKYARD_LEVELS } from "./backyardLevels";
 import type { LevelData } from "../types/level";
+import type { AreaId } from "../config/areas";
 
 export type LevelCatalogEntry = {
-  areaId: string;
+  areaId: AreaId;
   /** Placeholder while in blueprint mode — backgrounds aren't loaded by GameScene. */
   backgroundKey: string;
   backgroundUrl: string;
