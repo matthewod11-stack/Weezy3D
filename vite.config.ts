@@ -10,7 +10,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
+        // 2D Phaser game removed (lives in a separate repo) — the 3D testbed
+        // is the game now; maps.html stays as the level-design surface.
         maps: resolve(__dirname, "maps.html"),
         three: resolve(__dirname, "3d.html"),
       },

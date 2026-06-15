@@ -1,12 +1,15 @@
 # Princess Eloise — Bedroom World
 
-HD-2D pixel platformer for kids (4–8). Eloise journeys from bedroom through six connected areas, collecting companions and tokens, culminating in a T-Rex boss fight.
+Pixel platformer for kids (4–8). Eloise journeys from bedroom through six connected areas, collecting companions and tokens, culminating in a T-Rex boss fight.
+
+> **2026-06-15 — the 2D Phaser game was extracted to a separate repo.** This repo is now **Weezy3D**: the Three.js testbed (`/3d.html`) is the game. The deleted shells (`src/scenes/`, the Phaser entity classes, render systems, `index.html`, `src/main.ts`) live in the standalone 2D repo. The reusable **Phaser-free logic** the 2D game pioneered was kept and relocated to **`src/logic/`** (`airJump`, `powerDispatch`, `bossFight`, `cutscene`, `menuSelection`, `aimVelocity`, `breakable/climbDetect`) — substrate for porting powers/boss/cutscenes to 3D (playbook §5.4). The level-design pipeline (`design/ → encodeFromSketch → levelCatalog`) and `maps.html` are shared and untouched.
 
 ## Tech Stack
 
-- **Runtime:** Phaser 3.80
+- **Runtime:** Three.js (3D testbed) — Phaser removed 2026-06-15
 - **Language:** TypeScript (strict)
-- **Build:** Vite 6
+- **Build:** Vite 6 (two entries: `3d.html`, `maps.html`)
+- **Input:** keyboard + gamepad (`src/three/gamepad.ts`; 8BitDo SN30 Pro mapped)
 - **Validation:** Zod (level JSON schema)
 - **Target:** Web (itch.io HTML5), desktop + tablet
 
@@ -27,29 +30,35 @@ HD-2D pixel platformer for kids (4–8). Eloise journeys from bedroom through si
 
 | URL | What it shows |
 |-----|---------------|
-| `http://localhost:5173/` | The game itself — menu → game scene |
+| `http://localhost:5173/3d.html` | **The game.** (Was a "testbed"; now the only runtime — the 2D `/` entry was removed 2026-06-15.) Add `?world=bedroom\|hallway\|kitchen\|familyRoom\|backyard`. |
 | `http://localhost:5173/maps.html` | **Level design surface.** All 6 areas, every drafted variant, segment-boundary markers, totals. Edit `src/design/levelSketches.ts`; this page hot-reloads. |
-| `http://localhost:5173/3d.html` | **Weezy3D testbed (2026-06-10, session 3).** **All 5 worlds as CONTINUOUS Three.js runs** via `?world=bedroom\|hallway\|kitchen\|familyRoom\|backyard` — each world's 5 catalog levels stitched into ONE run at load time (`src/three/worldStitch.ts`, pure + 17 tests): intermediate doors dropped, floor seams coalesced, former boundaries = pit-death checkpoints + "Bedroom · 2/5" HUD progress; "Next world →" chains. `?level=0..24` = back-compat alias (containing world, spawned at that segment). Per-world set dressing via `worldThemes.ts` — backgrounds DONE for all 4 non-boss worlds; **ENEMIES + COMPANION CAMEOS LIVE IN 3D (2026-06-12, session 5)** — all 4 enemy types as patrol billboards with 2D-parity stomp/damage (`src/three/enemy3d.ts`, pure + 9 tests), ❤️ hearts HUD + 1500ms invincibility blink + death→checkpoint respawn, companion preserved through the stitcher and collectible (heartBonus parity: Teddy +1 max heart, caption); **traversal powers still unported — power-gated segments impassable in 3D until §5.4 (bedroom is gate-free and now FULLY playable)**. Same `LevelData` + `PHYSICS` constants, billboard storybook Eloise. Code in `src/three/` (no Phaser imports). Debug handle: `window.__weezy3d` (incl. `segments`, `jumpToSegment(i)`, `snapCamera()`, `scene`). **Backgrounds pass 2 (candy re-theme): REVERTED 2026-06-12** — user verdict: not worth effort + lag; restored to the session-2/3 procedural look from a pre-candy Time Machine snapshot; archive at `../Weezy3D-candy-backgrounds-archive-2026-06-12.tgz`; the session-4 frame-rate investigation is moot (chop was candy-tied), `pixelRatio` lever noted in PROGRESS.md if it ever returns. **Start any 3D session by reading `docs/3d-transition/weezy3d-playbook.md`** — current state (§5.6 = pass-2 learnings + perf budget), the z=0 diorama convention, paid-for gotchas, verification recipes, next-port order. |
+| `http://localhost:5173/3d.html` (detail) | **Weezy3D (from 2026-06-10, session 3).** **All 5 worlds as CONTINUOUS Three.js runs** via `?world=bedroom\|hallway\|kitchen\|familyRoom\|backyard` — each world's 5 catalog levels stitched into ONE run at load time (`src/three/worldStitch.ts`, pure + 17 tests): intermediate doors dropped, floor seams coalesced, former boundaries = pit-death checkpoints + "Bedroom · 2/5" HUD progress; "Next world →" chains. `?level=0..24` = back-compat alias (containing world, spawned at that segment). Per-world set dressing via `worldThemes.ts` — backgrounds DONE for all 4 non-boss worlds; **ENEMIES + COMPANION CAMEOS LIVE IN 3D (2026-06-12, session 5)** — all 4 enemy types as patrol billboards with 2D-parity stomp/damage (`src/three/enemy3d.ts`, pure + 9 tests), ❤️ hearts HUD + 1500ms invincibility blink + death→checkpoint respawn, companion preserved through the stitcher and collectible (heartBonus parity: Teddy +1 max heart, caption); **traversal powers still unported — power-gated segments impassable in 3D until §5.4 (bedroom is gate-free and now FULLY playable)**. Same `LevelData` + `PHYSICS` constants, billboard storybook Eloise. Code in `src/three/` (no Phaser imports). Debug handle: `window.__weezy3d` (incl. `segments`, `jumpToSegment(i)`, `snapCamera()`, `scene`). **Backgrounds pass 2 (candy re-theme): REVERTED 2026-06-12** — user verdict: not worth effort + lag; restored to the session-2/3 procedural look from a pre-candy Time Machine snapshot; archive at `../Weezy3D-candy-backgrounds-archive-2026-06-12.tgz`; the session-4 frame-rate investigation is moot (chop was candy-tied), `pixelRatio` lever noted in PROGRESS.md if it ever returns. **Start any 3D session by reading `docs/3d-transition/weezy3d-playbook.md`** — current state (§5.6 = pass-2 learnings + perf budget), the z=0 diorama convention, paid-for gotchas, verification recipes, next-port order. |
 
 ## Folder Structure
 
 ```
 src/
-  scenes/       BootScene, GameScene, UIScene, MenuScene
-  entities/     Player, Enemy, DustBunny, Token, Companion
-  levels/       bedroomLevels.ts (auto-generated), encodeFromSketch.ts (converter)
-                levelCatalog.ts, hallwayLevels.ts (stub)
+  three/        THE GAME (Three.js, no Phaser). main.ts, physics3d.ts,
+                input.ts, gamepad.ts, worldStitch.ts, enemy3d.ts, level3d.ts,
+                playerView/enemyView/companionView, hud.ts, *Set.ts themes
+  logic/        Phaser-free reusable logic (kept from the 2D game): airJump,
+                powerDispatch, bossFight, cutscene, menuSelection, aimVelocity,
+                breakableDetect, climbDetect — substrate for 3D feature ports
+  levels/       bedroomLevels.ts … backyardLevels.ts (auto-generated),
+                encodeFromSketch.ts (converter), levelCatalog.ts,
+                reachability.ts (build-time lint), *DemoLevel.ts, testingGround.ts
   design/       levelSketches.ts (source of truth), combineSlot.ts,
-                sketchRenderer.ts, mapsPage.ts
-  systems/      BlueprintGrid.ts, LevelBackgroundLoader.ts, measureSpriteFeet.ts
-  config/       physics.ts, game.ts, textures.ts, backgrounds.ts,
-                blueprint.ts, platforms.ts
-  state/        GameState.ts (singleton outside Phaser scenes)
+                sketchRenderer.ts, mapsPage.ts (→ maps.html)
+  config/       physics.ts, game.ts, companions.ts, abilities.ts, gating.ts,
+                areas.ts, cutscenes.ts, textures.ts, backgrounds.ts
+  state/        GameState.ts (singleton)
   types/        level.ts (Zod schemas)
-index.html      Game entry
+3d.html         The game entry (Vite multi-page)
 maps.html       Level-design entry (Vite multi-page)
 ROADMAP.md      V1 roadmap (Phases 0–7 + Touch/Art tracks)
 ```
+
+(The 2D Phaser game — `src/scenes/`, the Phaser entity classes, `src/systems/{BlueprintGrid,LevelBackgroundLoader,measureSpriteFeet}`, `index.html`, `src/main.ts` — was removed 2026-06-15 and lives in a separate repo.)
 
 ## ⭐ Level Design Workflow
 
@@ -60,7 +69,7 @@ ROADMAP.md      V1 roadmap (Phases 0–7 + Touch/Art tracks)
 1. Open `src/design/levelSketches.ts`. Find the slot you want to change (e.g., `BEDROOM_SLOTS[2]` for Level 3).
 2. Each slot has 3 variants (`A`, `B`, `C`). Edit the platforms/zones/pits of any variant.
 3. Save. Vite hot-reloads both the game (with new level data) and `/maps.html` (with the new sketches).
-4. Verify the change visually at `/maps.html`; playtest in the game at `/`.
+4. Verify the change visually at `/maps.html`; playtest in the game at `/3d.html`.
 
 ### Layout of a slot:
 

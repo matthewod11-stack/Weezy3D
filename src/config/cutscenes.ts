@@ -2,7 +2,7 @@ import type { CompanionType } from "../design/levelSketches";
 import { COMPANION_LABELS } from "../design/levelSketches";
 import { COMPANIONS } from "./companions";
 import { ABILITIES } from "./abilities";
-import type { CutsceneScript, DemoMotion } from "../systems/cutscene";
+import type { CutsceneScript, DemoMotion } from "../logic/cutscene";
 
 /**
  * Each companion's signature move, shown as a looping mini-demo. Compile-time
