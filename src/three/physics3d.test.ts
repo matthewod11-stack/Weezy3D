@@ -367,6 +367,20 @@ describe("stepPlayer — charge + breakables", () => {
     expect(env.breakables[0]).toBeNull();
   });
 
+  it("dash-plow smashes a breakable on the trigger frame (tight placement)", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    // Near face ~30px ahead of the body's leading edge: beyond the old |vx|*dt
+    // trigger-frame reach (pre-dash vx=0 → 20px), within the dashSpeed-based reach (~47px).
+    const env: PowerEnv = {
+      unlocked: new Set<AbilityId>(["dash"]),
+      climbWalls: [],
+      breakables: [{ x: BODY_W / 2 + 30, y: FLOOR_Y - BODY_H, w: 20, h: BODY_H }],
+    };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], env);
+    expect(env.breakables[0]).toBeNull(); // smashed on the dash's first frame
+  });
+
   it("does nothing without charge or dash", () => {
     let s = settleOnFloor();
     s = { ...s, facing: 1 };

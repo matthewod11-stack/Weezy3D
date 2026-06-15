@@ -255,11 +255,13 @@ function stepOnce(
   // Smash a faced breakable: charge (press, grounded, flush) OR an active dash.
   const wantCharge = active === "charge" && input.powerPressed;
   const dashing = s.dashMsRemaining > 0 || s.justDashed;
-  if (env.unlocked.has("charge") && wantCharge) {
+  if (wantCharge) {
     const idx = facingBreakable(bodyRect(s), s.facing, env.breakables, scaled(ABILITIES.charge.traversal?.chargeReach));
     if (idx >= 0) { env.breakables[idx] = null; s.justSmashed = idx; }
   } else if (dashing) {
-    const reach = Math.abs(s.vx) * dt + BODY_W; // covers this step's lunge
+    // Dash vx is pinned to ±dashSpeed for the window; use the constant so the plow
+    // reach is correct even on the trigger frame (before vx is assigned this frame).
+    const reach = scaled(ABILITIES.dash.traversal?.dashSpeed) * dt + BODY_W;
     const idx = facingBreakable(bodyRect(s), s.facing, env.breakables, reach);
     if (idx >= 0) { env.breakables[idx] = null; s.justSmashed = idx; }
   }
