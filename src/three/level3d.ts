@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { LevelData } from "../types/level";
-import { rectCenterWorld, toWorldX, toWorldY } from "./coords";
+import { rectCenterWorld, toWorldLen, toWorldX, toWorldY } from "./coords";
 import type { PhysRect } from "./physics3d";
 
 /**
@@ -27,6 +27,10 @@ export interface LevelBuild {
   exitZone: PhysRect;
   exitGroup: THREE.Group;
   exitGlow: THREE.PointLight;
+  /** Vine/lattice climb zones (purely decorative — sim reads level.climbWalls). */
+  climbWalls: THREE.Mesh[];
+  /** Smashable barricades — main.ts hides .mesh when the sim reports a smash. */
+  breakables: { mesh: THREE.Mesh }[];
 }
 
 /**
@@ -139,6 +143,31 @@ function buildShelfLip(p: LevelData["platforms"][number], surfaces: WorldSurface
   return lip;
 }
 
+/**
+ * Climb walls and breakables follow the diorama z-convention: solid geometry
+ * extends BACKWARD from z ≈ 0, so the player billboard (z = +0.06) is never
+ * occluded by their front half.
+ */
+const CLIMB_Z = 0.05;
+function buildClimbWall(w: { x: number; y: number; w: number; h: number }): THREE.Mesh {
+  const geo = new THREE.BoxGeometry(toWorldLen(w.w), toWorldLen(w.h), 0.4);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x6b8f5a, roughness: 0.9 }); // vine/lattice green
+  const mesh = new THREE.Mesh(geo, mat);
+  const c = rectCenterWorld(w);
+  mesh.position.set(c.cx, c.cy, CLIMB_Z - 0.2); // back behind the gameplay plane
+  return mesh;
+}
+
+function buildBreakable(b: { x: number; y: number; w: number; h: number }): THREE.Mesh {
+  const geo = new THREE.BoxGeometry(toWorldLen(b.w), toWorldLen(b.h), 1.4);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xb07a3c, roughness: 0.8 }); // crate/barricade
+  const mesh = new THREE.Mesh(geo, mat);
+  const c = rectCenterWorld(b);
+  mesh.position.set(c.cx, c.cy, -0.7); // solid, extends backward from ~0
+  mesh.castShadow = true;
+  return mesh;
+}
+
 function buildToken(t: { x: number; y: number }, index: number): TokenEntity {
   const geo = new THREE.ExtrudeGeometry(starShape(0.26, 0.115), {
     depth: 0.09,
@@ -221,6 +250,17 @@ export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SU
     return token;
   });
 
+  const climbWalls = (data.climbWalls ?? []).map((w) => {
+    const m = buildClimbWall(w);
+    group.add(m);
+    return m;
+  });
+  const breakables = (data.breakables ?? []).map((b) => {
+    const m = buildBreakable(b);
+    group.add(m);
+    return { mesh: m };
+  });
+
   const { group: exitGroup, glow: exitGlow } = buildExit(data.exit);
   group.add(exitGroup);
 
@@ -231,6 +271,8 @@ export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SU
     exitZone: { x: data.exit.x, y: data.exit.y, w: data.exit.w, h: data.exit.h },
     exitGroup,
     exitGlow,
+    climbWalls,
+    breakables,
   };
 }
 

@@ -12,7 +12,11 @@ import {
   touchesCircle,
   touchesRect,
   type PlayerState,
+  type PhysRect,
 } from "./physics3d";
+import { abilitiesForArea } from "../config/gating";
+import type { AbilityId } from "../config/abilities";
+import type { AreaId } from "../config/areas";
 import { animateExit, animateTokens, buildLevel } from "./level3d";
 import { themeForArea } from "./worldThemes";
 import { PlayerView } from "./playerView";
@@ -136,6 +140,18 @@ async function boot(): Promise<void> {
   let maxHearts = 3;
   let invincibleMs = 0;
 
+  // ── Powers (3D-local, like hearts — NOT the GameState singleton) ──────────
+  // Seeded from the area's expected loadout; checkCompanion() grants the home
+  // companion's power on pickup. breakables is the destructible world state the
+  // sim mutates (nulled on smash) — kept 1:1 with build.breakables by order.
+  let unlocked: Set<AbilityId> = abilitiesForArea(world.areaId as AreaId);
+  let breakables: (PhysRect | null)[] = (level.breakables ?? []).map((b) => ({
+    x: b.x,
+    y: b.y,
+    w: b.w,
+    h: b.h,
+  }));
+
   const input = new KeyboardInput();
   input.attach();
   // Controller sibling of the keyboard — OR-merged each frame (see frame()).
@@ -173,6 +189,12 @@ async function boot(): Promise<void> {
     companionMet = false;
     companionView?.setUncollected();
     hud.setHearts(hearts, maxHearts);
+    // Power state: re-seed the loadout, rebuild the destructible world, and
+    // re-show every breakable mesh (gotcha #12 — symmetric show path for the
+    // smash's hide, else a "Play again" leaves rebuilt barricades invisible).
+    unlocked = abilitiesForArea(world.areaId as AreaId);
+    breakables = (level.breakables ?? []).map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+    for (const br of build.breakables) br.mesh.visible = true;
     playerView.group.visible = true;
     input.setEnabled(true);
     gamepad.setEnabled(true);
@@ -274,6 +296,7 @@ async function boot(): Promise<void> {
     if (!companionSpawn || companionMet) return;
     if (touchesRect(player, companionPickupBox(companionSpawn))) {
       companionMet = true;
+      unlocked.add(COMPANIONS[companionSpawn.type].grants);
       const bonus = COMPANIONS[companionSpawn.type].heartBonus ?? 0;
       maxHearts += bonus;
       hearts = Math.min(hearts + bonus, maxHearts);
@@ -343,6 +366,9 @@ async function boot(): Promise<void> {
       const seg = segments[Math.min(Math.max(i, 0), segments.length - 1)]!;
       player = createPlayerState(seg.spawn.x, seg.spawn.y);
     },
+    /** Power introspection / grant — drives in-browser power verification. */
+    unlockedAbilities: () => [...unlocked],
+    grantAbility: (id: AbilityId) => unlocked.add(id),
   };
 
   // ── Main loop ───────────────────────────────────────────────────────────
@@ -371,6 +397,9 @@ async function boot(): Promise<void> {
       right: keys.right || pad.right,
       jumpPressed: keys.jumpPressed || pad.jumpPressed,
       jumpReleased: keys.jumpReleased || pad.jumpReleased,
+      up: keys.up || pad.up,
+      powerPressed: keys.powerPressed || pad.powerPressed,
+      powerHeld: keys.powerHeld || pad.powerHeld,
     };
     const frameInput = simInput
       ? {
@@ -378,14 +407,27 @@ async function boot(): Promise<void> {
           right: keysOrPad.right || !!simInput.right,
           jumpPressed: keysOrPad.jumpPressed || !!simInput.jumpPressed,
           jumpReleased: keysOrPad.jumpReleased || !!simInput.jumpReleased,
+          up: keysOrPad.up || !!simInput.up,
+          powerPressed: keysOrPad.powerPressed || !!simInput.powerPressed,
+          powerHeld: keysOrPad.powerHeld || !!simInput.powerHeld,
         }
       : keysOrPad;
     if (simInput) {
-      // Edge flags are one-shot — consume them after a frame.
-      simInput = { ...simInput, jumpPressed: false, jumpReleased: false };
+      // Edge flags are one-shot — consume them after a frame (jump + power).
+      simInput = { ...simInput, jumpPressed: false, jumpReleased: false, powerPressed: false };
     }
     if (!won) {
-      player = stepPlayer(player, frameInput, dtMs, build.solids);
+      player = stepPlayer(player, frameInput, dtMs, build.solids, {
+        unlocked,
+        climbWalls: level.climbWalls ?? [],
+        breakables,
+      });
+      if (player.justSmashed >= 0) {
+        // The sim already nulled breakables[justSmashed]; hide its mesh so the
+        // barricade visually disappears. resetLevel re-shows all (gotcha #12).
+        const br = build.breakables[player.justSmashed];
+        if (br) br.mesh.visible = false;
+      }
       collectTokens();
       checkExit();
       checkKillPlane();
