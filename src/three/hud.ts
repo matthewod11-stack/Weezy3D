@@ -101,7 +101,7 @@ export class Hud {
     this.root.appendChild(this.caption);
 
     this.hint = document.createElement("div");
-    this.hint.textContent = "← → move · Space jump";
+    this.hint.textContent = "← → / D-pad: move · Space / Ⓐ: jump";
     this.hint.style.cssText = [
       "position:absolute",
       "bottom:26px",

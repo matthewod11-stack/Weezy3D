@@ -5,6 +5,7 @@ import { LEVEL_CATALOG } from "../levels/levelCatalog";
 import { groupCatalogByArea, segmentAt, stitchLevels } from "./worldStitch";
 import { toWorldLen, toWorldX, toWorldY } from "./coords";
 import { KeyboardInput } from "./input";
+import { GamepadInput } from "./gamepad";
 import {
   createPlayerState,
   stepPlayer,
@@ -137,6 +138,9 @@ async function boot(): Promise<void> {
 
   const input = new KeyboardInput();
   input.attach();
+  // Controller sibling of the keyboard — OR-merged each frame (see frame()).
+  // Standard layout: D-pad / left stick move, bottom face button jumps.
+  const gamepad = new GamepadInput();
 
   const nextWorld = worlds[worldIndex + 1];
   const hud = new Hud(
@@ -171,6 +175,7 @@ async function boot(): Promise<void> {
     hud.setHearts(hearts, maxHearts);
     playerView.group.visible = true;
     input.setEnabled(true);
+    gamepad.setEnabled(true);
   }
 
   // ── Camera follow (ported look-ahead feel) ──────────────────────────────
@@ -219,6 +224,7 @@ async function boot(): Promise<void> {
     if (touchesRect(player, build.exitZone)) {
       won = true;
       input.setEnabled(false);
+      gamepad.setEnabled(false);
       hud.showWin(collected);
     }
   }
@@ -304,6 +310,11 @@ async function boot(): Promise<void> {
     companionMet: () => companionMet,
     companionAt: () => (companionSpawn ? { ...companionSpawn } : null),
     hasWon: () => won,
+    /** Live gamepad introspection — drives the in-browser mapping tester.
+     *  Returns null until a pad is connected AND a button has been pressed
+     *  (browsers withhold getGamepads() until first interaction). */
+    gamepad: () => gamepad.snapshot(),
+    gamepadConnected: () => gamepad.connected(),
     teleport: (x: number, y: number) => {
       player = { ...player, x, y, vx: 0, vy: 0 };
     },
@@ -337,21 +348,38 @@ async function boot(): Promise<void> {
   // ── Main loop ───────────────────────────────────────────────────────────
   let last = performance.now();
   let elapsed = 0;
+  let padToastShown = false;
 
   function frame(now: number): void {
     const dtMs = Math.min(50, now - last);
     last = now;
     elapsed += dtMs;
 
+    // Browsers only expose a pad after its first button press, so this fires
+    // the moment the player actually starts using the controller.
+    if (!padToastShown && gamepad.connected()) {
+      padToastShown = true;
+      hud.showCaption("🎮 Controller connected!");
+    }
+
+    // Keyboard + gamepad merge OR-wise: either device can drive any action,
+    // and each owns its own jump press/release edges this frame.
     const keys = input.readFrame();
+    const pad = gamepad.readFrame();
+    const keysOrPad = {
+      left: keys.left || pad.left,
+      right: keys.right || pad.right,
+      jumpPressed: keys.jumpPressed || pad.jumpPressed,
+      jumpReleased: keys.jumpReleased || pad.jumpReleased,
+    };
     const frameInput = simInput
       ? {
-          left: keys.left || !!simInput.left,
-          right: keys.right || !!simInput.right,
-          jumpPressed: keys.jumpPressed || !!simInput.jumpPressed,
-          jumpReleased: keys.jumpReleased || !!simInput.jumpReleased,
+          left: keysOrPad.left || !!simInput.left,
+          right: keysOrPad.right || !!simInput.right,
+          jumpPressed: keysOrPad.jumpPressed || !!simInput.jumpPressed,
+          jumpReleased: keysOrPad.jumpReleased || !!simInput.jumpReleased,
         }
-      : keys;
+      : keysOrPad;
     if (simInput) {
       // Edge flags are one-shot — consume them after a frame.
       simInput = { ...simInput, jumpPressed: false, jumpReleased: false };
