@@ -391,6 +391,38 @@ describe("stepPlayer — charge + breakables", () => {
   });
 });
 
+describe("stepPlayer — glide", () => {
+  const GLIDE_VY = ABILITIES.glide.envelope!.glideFallSpeed! * RENDER_SCALE;
+  const glideEnv: PowerEnv = { unlocked: new Set<AbilityId>(["glide"]), climbWalls: [], breakables: [] };
+
+  function falling(env: PowerEnv): PlayerState {
+    let s = createPlayerState(0, FLOOR_Y - 600); // high up, no floor under => keeps falling
+    s = frames3(s, 30, {}, [], env);             // accelerate downward
+    expect(s.vy).toBeGreaterThan(GLIDE_VY);      // faster than the clamp before gliding
+    return s;
+  }
+
+  it("clamps descent to glideFallSpeed while power is held and descending", () => {
+    let s = falling(glideEnv);
+    s = frames3(s, 10, { powerHeld: true }, [], glideEnv);
+    expect(s.vy).toBeLessThanOrEqual(GLIDE_VY + 1);
+    expect(s.vy).toBeGreaterThan(0);
+  });
+
+  it("does not clamp without the ability", () => {
+    let s = falling(NO_POWERS_ENV);
+    const before = s.vy;
+    s = frames3(s, 10, { powerHeld: true }, [], NO_POWERS_ENV);
+    expect(s.vy).toBeGreaterThan(before); // kept accelerating
+  });
+
+  it("does not clamp while rising", () => {
+    let s = settleOnFloor();
+    s = stepPlayer(s, { ...idle, jumpPressed: true, powerHeld: true }, STEP, [FLOOR], glideEnv);
+    expect(s.vy).toBeLessThan(0); // still launching upward, glide didn't pin it
+  });
+});
+
 describe("stepPlayer — dash", () => {
   const dashEnv: PowerEnv = { unlocked: new Set<AbilityId>(["dash"]), climbWalls: [], breakables: [] };
   const DASH_VX = ABILITIES.dash.traversal!.dashSpeed! * RENDER_SCALE;

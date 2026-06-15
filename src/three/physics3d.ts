@@ -296,6 +296,12 @@ function stepOnce(
       g = PHYSICS.GRAVITY_DOWN;
     }
     s.vy += g * dt;
+
+    // Glide: clamp descent while the power is held and gliding is the active power.
+    if (active === "glide" && input.powerHeld && s.vy > 0) {
+      const clamp = scaled(ABILITIES.glide.envelope?.glideFallSpeed);
+      if (s.vy > clamp) s.vy = clamp;
+    }
   }
 
   // ── Integrate + collide, axis-separated ────────────────────────────────
