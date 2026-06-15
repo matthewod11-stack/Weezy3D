@@ -2,6 +2,53 @@
 
 ---
 
+## Session: 2026-06-15 (Weezy3D session 7 — 3D TRAVERSAL POWERS; §5.4 ✅)
+
+**All five traversal powers ported to the Three.js runtime via subagent-driven TDD** — each power went through spec + code-quality review. Every power-gated world (Hallway, Kitchen, Family Room, Backyard) is now playable end-to-end in 3D. Previously only Bedroom (gate-free) was.
+
+### What shipped
+
+**Five powers, all in `src/three/physics3d.ts`** (the pure sim, reusing `src/logic/` + `src/config/`):
+
+- **Double-jump** — Space/button-0 in air; `shouldAirJump`; gated on `doubleJump`; one air-jump per flight, re-arms on landing. Apex measured 78→155 design-px (`airJumpsUsed` 1 confirmed).
+- **Dash** — power button (press); velocity-override window (`dashSpeed` 800 × `dashDurationMs` 400ms via `resolveActivePower`); browser proof: 640px lunge (= 800 × 0.4 × 2 scale-factor) confirmed.
+- **Wall-climb** — **Hold Up** (W/↑ / stick or D-pad up), NOT the power button (2D parity); ascends a `climbWall` zone at `climbSpeed` 130, gravity suspended while climbing; vy −260 confirmed ascending.
+- **Charge** — power button (press) at a flush barricade OR dash-into-it; smashes a `breakable`; `chargeReach` 14; breakable mesh hidden by caller on `player.justSmashed`; `reset()` restores all breakable meshes (gotcha 12 symmetry). Browser proof: backyard barricades 3→2 on smash, reset restored all 3.
+- **Glide** — power button (held); clamps descent to `glideFallSpeed` 90 while airborne + descending, via the dispatcher (priority 3 > dash 1); browser proof: long fall clamped to 180 px/s.
+
+**Input mapping:** keyboard power = **X**, up = W/↑; gamepad power = **button 1**, up = stick/D-pad up (8-way hat decode extended). Jump/double-jump stay on Space / button 0.
+
+### As-built design highlights
+
+- `FrameInput` gained OPTIONAL `up`/`powerPressed`/`powerHeld`; `stepPlayer` gained an OPTIONAL `env: PowerEnv = { unlocked: Set<AbilityId>, climbWalls, breakables }`. Optionality kept the original 13 feel-tests byte-identical ("feel preserved" guaranteed by the type system).
+- **Breakables live ONLY in `env.breakables`** (never in static `build.solids`) — `stepPlayer` composes them into collision internally and nulls a smashed one in place, reporting `player.justSmashed` (index). The caller hides that mesh.
+- **Abilities are 3D-local** (a `Set` seeded per run by `abilitiesForArea(world.areaId)`), exactly as hearts are 3D-local — NOT the `GameState` singleton. So `?world=kitchen` starts with double-jump+dash+wall-climb. Companion-collect now also `unlocked.add(COMPANIONS[type].grants)` (idempotent), alongside the existing heart bonus. Unlock-seeding confirmed per world: hallway `[doubleJump]`, kitchen `[doubleJump,dash,wallClimb]`, backyard all 5.
+- **`level3d.ts`** now renders climb walls (vine-green `MeshLambertMaterial`, behind the gameplay plane at z < 0) and breakables (crate-brown, solid, casts shadow); both exposed on `LevelBuild`; `resetLevel` re-shows all breakable meshes.
+- **Type cleanup:** `WorldEntry.areaId`/`LevelCatalogEntry.areaId` widened from `string` to `AreaId` (removed casts).
+- New debug handles: `__weezy3d.unlockedAbilities()`, `grantAbility(id)`.
+
+### Spec + plan
+
+Spec: `docs/superpowers/specs/2026-06-15-3d-powers-design.md` · Plan: `docs/superpowers/plans/2026-06-15-3d-powers.md`. 14 commits on branch `feat/3d-powers`.
+
+### Verification
+
+`npm run build` green: tsc + **416 Vitest tests** (was 392; +24 power tests) + 2-page Vite build. The original 13 physics feel-tests are byte-identical (optionality design).
+
+In-browser (preview against the live dev server, driven via `__weezy3d`): double-jump apex 78→155 design-px; dash 640px lunge; wall-climb vy −260 ascending; charge smashed backyard barricade (3→2), `reset()` restored all 3; glide clamped fall to 180 px/s. Unlock-seeding confirmed per world. Zero console errors.
+
+### Feel note for human playtest (not a bug)
+
+Releasing Up mid-wall-climb leaves the player with residual climb velocity (−260), giving a small upward "hop" off the wall (~40% of a jump) before gravity reasserts. Arguably a nice mantle-over-the-lip boost; flagged for the human to judge/tune. **Do not silently change it** — the human plays, the agent proves (playbook §6).
+
+### Next Session Should
+
+1. **Human playtest all 5 powers on real hardware** (including gamepad — button 1 = power, stick/D-pad up = climb): double-jump cadence, dash timing, wall-climb feel + the "hop off" note above, charge smash-vs-dash-plow, glide descent. Bedroom is gate-free; use `?world=hallway` through `?world=backyard` to exercise each gate in context.
+2. Optional: port the boss + cutscenes to 3D scenes — pure logic is ready in `src/logic/` (`bossFight.ts`, `cutscene.ts`, `cutscenes.ts` config).
+3. Optional: wire `GameState` persistence across worlds (currently 3D-local per run; `src/state/GameState.ts` is kept but not wired into the 3D runtime).
+
+---
+
 ## Session: 2026-06-15 (Weezy3D session 6 — GAMEPAD support + 2D Phaser game REMOVED)
 
 **Two arcs, both landed on `main` and verified green.** (1) Added gamepad input to the 3D game and mapped the user's 8BitDo SN30 Pro on real hardware. (2) Extracted the 2D Phaser game out of this repo — Weezy3D is now the Three.js 3D game, full stop — and refreshed all the docs for a clean slate.
