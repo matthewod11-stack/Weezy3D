@@ -198,8 +198,6 @@ function stepOnce(
     s.bufferMs = Math.max(0, s.bufferMs - deltaMs);
   }
 
-  if (s.onGround) s.airJumpsUsed = 0;
-
   const wantJump = s.bufferMs > 0 && (s.onGround || s.coyoteMs > 0);
   if (wantJump) {
     s.vy = PHYSICS.JUMP_VELOCITY;
@@ -290,8 +288,8 @@ function stepOnce(
   }
 
   s.justLanded = s.onGround && !wasOnGround;
-  // Touchdown happens at the Y-collision phase below the top-of-frame reset, so
-  // clear the air-jump count here too — the counter is 0 the instant feet land.
+  // Y-collision sets s.onGround for the frame (incl. touchdown); the air-jump is
+  // gated on !onGround, so resetting only here covers landing + resting frames.
   if (s.onGround) s.airJumpsUsed = 0;
 
   return s;

@@ -233,6 +233,7 @@ describe("stepPlayer — power foundation (no behavior yet)", () => {
 describe("stepPlayer — double-jump", () => {
   const dj: PowerEnv = { unlocked: new Set<AbilityId>(["doubleJump"]), climbWalls: [], breakables: [] };
 
+  // returns state mid-fall (vy>0) so a follow-up jumpPressed fires as an air jump
   function jumpThenDescend(env: PowerEnv): PlayerState {
     let s = settleOnFloor();
     s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], env);
