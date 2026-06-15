@@ -1,0 +1,26 @@
+{
+  "name": "princess-eloise-bedroom-world",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vitest run && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@types/three": "^0.184.1",
+    "phaser": "^3.80.1",
+    "three": "^0.184.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

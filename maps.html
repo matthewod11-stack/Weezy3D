@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bedroom — level sketches</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #2a3138;
+    color: #d8dde2;
+    margin: 0;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  h1 {
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin: 0 0 4px 0;
+    font-size: 22px;
+    color: #ffd599;
+  }
+  .subtitle {
+    color: #8aa0b0;
+    margin: 0 0 8px 0;
+    font-size: 13px;
+  }
+  #totals {
+    color: #ffcc66;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    margin-bottom: 24px;
+    display: block;
+  }
+  .legend {
+    background: #353d45;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #d8dde2;
+  }
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .legend-swatch.round { border-radius: 50%; }
+  .legend-swatch.triangle {
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 12px solid #ff6b6b;
+    background: transparent !important;
+    border-radius: 0;
+  }
+
+  .slot {
+    margin-bottom: 32px;
+    background: #1f262c;
+    padding: 20px;
+    border-radius: 14px;
+    border: 1px solid #353d45;
+  }
+  .slot-head { margin-bottom: 16px; }
+  .slot-head h2 {
+    margin: 0 0 4px 0;
+    font-size: 19px;
+    color: #ffd599;
+    letter-spacing: 0.2px;
+  }
+  .slot-head .intent {
+    margin: 0 0 4px 0;
+    color: #d8dde2;
+    font-size: 14px;
+  }
+  .slot-head .slot-meta {
+    margin: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #8aa0b0;
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .option {
+    background: #353d45;
+    padding: 14px 16px;
+    border-radius: 10px;
+    overflow-x: auto;
+  }
+  .option-head {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+  }
+  .variant-tag {
+    background: #ffcc88;
+    color: #1f262c;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .source-tag {
+    color: #ffcc66;
+    font-style: italic;
+  }
+  .meta-tag {
+    color: #8aa0b0;
+  }
+  .meta-tag.tag-companion {
+    color: #ff8fa3;
+    font-weight: 600;
+  }
+  .option-note {
+    margin: 4px 0 10px 0;
+    font-size: 12px;
+    color: #b0bdc8;
+    font-style: italic;
+  }
+
+  code {
+    background: #1f262c;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ffcc88;
+  }
+
+  /* Area-level grouping */
+  .area {
+    margin-bottom: 40px;
+    background: #161b20;
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid #2a3138;
+  }
+  .area-boss {
+    border-color: #6b4226;
+    background: linear-gradient(to bottom, #2a1f18, #161b20);
+  }
+  .area-head {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #2a3138;
+  }
+  .area-head h2 {
+    margin: 0 0 6px 0;
+    font-size: 24px;
+    color: #ffd599;
+    letter-spacing: 0.3px;
+  }
+  .area-intent {
+    margin: 0 0 8px 0;
+    color: #d8dde2;
+    font-size: 14px;
+    font-style: italic;
+  }
+  .area-meta {
+    margin: 0;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    color: #b0bdc8;
+  }
+  .area-meta strong {
+    color: #ffcc88;
+    font-weight: 600;
+  }
+  .boss-badge {
+    background: #c2410c;
+    color: #fff7ed;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-family: ui-monospace, monospace;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .status-full {
+    color: #4ade80;
+    font-weight: 600;
+  }
+  .status-partial {
+    color: #facc15;
+    font-weight: 600;
+  }
+  .status-empty {
+    color: #8aa0b0;
+  }
+  .area-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* Stub slot styling */
+  .slot-stub {
+    background: #2a3138;
+    padding: 14px 18px;
+    border-radius: 10px;
+    border: 1px dashed #4a5560;
+  }
+  .slot-stub .slot-head h3 {
+    color: #b0bdc8;
+    margin: 0 0 4px 0;
+    font-size: 15px;
+  }
+  .slot-stub .intent {
+    margin: 0 0 4px 0;
+    color: #8aa0b0;
+    font-size: 13px;
+    font-style: italic;
+  }
+  .stub-marker {
+    margin: 0;
+    color: #6c7a85;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Tweaks for drafted slot inside area */
+  .area .slot {
+    margin-bottom: 0;
+  }
+  .area .slot-head h3 {
+    margin: 0 0 4px 0;
+    font-size: 17px;
+    color: #ffcc88;
+  }
+</style>
+</head>
+<body>
+<h1>Princess Eloise — game map</h1>
+<p class="subtitle">6 areas · 5 companions · 4 enemy types + T-Rex boss. Edit <code>src/design/levelSketches.ts</code> and the page hot-reloads.</p>
+<span id="totals"></span>
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-swatch" style="background:#4ade80"></span> spawn</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#ff9933"></span> exit</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#7ec0e8"></span> platform</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#ffc966"></span> floor</span>
+  <span class="legend-item"><span class="legend-swatch round" style="background:#ffcc33"></span> token</span>
+  <span class="legend-item"><span class="legend-swatch triangle"></span> dust bunny</span>
+  <span class="legend-item"><span class="legend-swatch round" style="background:#ff8fa3"></span> companion (Teddy)</span>
+</div>
+
+<div id="maps-root"></div>
+
+<script type="module" src="/src/design/mapsPage.ts"></script>
+</body>
+</html>
