@@ -465,3 +465,62 @@ describe("stepPlayer — dash", () => {
     expect(s.dashMsRemaining).toBeLessThan(remainAfter1);
   });
 });
+
+describe("stepPlayer — multi-power interactions (all unlocked)", () => {
+  const ALL: PowerEnv = {
+    unlocked: new Set<AbilityId>(["doubleJump", "dash", "wallClimb", "charge", "glide"]),
+    climbWalls: [],
+    breakables: [],
+  };
+  const DASH_VX = ABILITIES.dash.traversal!.dashSpeed! * RENDER_SCALE;
+  const GLIDE_VY = ABILITIES.glide.envelope!.glideFallSpeed! * RENDER_SCALE;
+
+  it("dash (horizontal) and glide (vertical clamp) compose on orthogonal axes", () => {
+    // Start a ground dash facing right, then walk off into the air still in the
+    // dash window while holding power so glide clamps the fall. vx stays dash,
+    // vy clamps to glide — neither cancels the other.
+    const env = { ...ALL };
+    // A short floor so the dash carries the player off the edge into the air.
+    const ledge: PhysRect = { x: -200, y: FLOOR_Y, w: 260, h: 64 };
+    let s = createPlayerState(0, FLOOR_Y - 2);
+    s = frames3(s, 5, {}, [ledge], env); // settle
+    s = { ...s, facing: 1 };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [ledge], env); // dash starts
+    // advance with power held; once airborne + descending, glide should clamp vy
+    let sawAirborneClamp = false;
+    for (let i = 0; i < 40; i++) {
+      s = stepPlayer(s, { ...idle, powerHeld: true }, STEP, [ledge], env);
+      if (!s.onGround && s.vy > 0) {
+        expect(s.vy).toBeLessThanOrEqual(GLIDE_VY + 1); // glide clamps the fall
+        if (s.dashMsRemaining > 0) {
+          expect(Math.abs(s.vx)).toBeCloseTo(DASH_VX, 0); // dash still overrides vx
+          sawAirborneClamp = true;
+        }
+      }
+    }
+    expect(sawAirborneClamp).toBe(true); // we actually observed both at once
+  });
+
+  it("dispatcher picks charge over dash when grounded + flush at a breakable", () => {
+    const breakables: (PhysRect | null)[] = [{ x: BODY_W / 2 + 1, y: FLOOR_Y - BODY_H, w: 20, h: BODY_H }];
+    const env: PowerEnv = { ...ALL, breakables };
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], env);
+    expect(s.justSmashed).toBe(0);     // charge fired
+    expect(s.justDashed).toBe(false);  // dash did NOT (charge has priority 2 > dash 1)
+    expect(env.breakables[0]).toBeNull();
+  });
+
+  it("dispatcher picks glide over dash when airborne + descending", () => {
+    const env = { ...ALL };
+    let s = createPlayerState(0, FLOOR_Y - 600); // high up, no floor → falling
+    s = frames3(s, 30, {}, [], env);             // accelerate downward past the clamp
+    expect(s.vy).toBeGreaterThan(GLIDE_VY);
+    s = stepPlayer(s, { ...idle, powerHeld: true }, STEP, [], env);
+    expect(s.justDashed).toBe(false);            // dash never started (glide prio 3 > dash 1)
+    s = frames3(s, 8, { powerHeld: true }, [], env);
+    expect(s.vy).toBeLessThanOrEqual(GLIDE_VY + 1); // glide clamped instead
+    expect(s.dashMsRemaining).toBe(0);
+  });
+});
