@@ -278,7 +278,7 @@ describe("stepPlayer — double-jump", () => {
 
 describe("stepPlayer — dash", () => {
   const dashEnv: PowerEnv = { unlocked: new Set<AbilityId>(["dash"]), climbWalls: [], breakables: [] };
-  const DASH_VX = (ABILITIES.dash.traversal!.dashSpeed ?? 0) * RENDER_SCALE;
+  const DASH_VX = ABILITIES.dash.traversal!.dashSpeed! * RENDER_SCALE;
 
   it("overrides horizontal velocity for the dash window when facing right", () => {
     let s = settleOnFloor();
@@ -297,6 +297,7 @@ describe("stepPlayer — dash", () => {
     const durMs = ABILITIES.dash.traversal!.dashDurationMs ?? 0;
     for (let i = 0; i < Math.ceil(durMs / STEP); i += 1) s = stepPlayer(s, idle, STEP, [FLOOR], dashEnv);
     const expected = DASH_VX * (durMs / 1000);
+    // 30% slack: the final substep may apply walk speed after the window closes
     expect(s.x - x0).toBeGreaterThan(expected * 0.7);
   });
 

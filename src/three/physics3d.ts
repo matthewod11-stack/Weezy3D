@@ -3,7 +3,7 @@ import { RENDER_SCALE } from "../config/game";
 import { ABILITIES, type AbilityId } from "../config/abilities";
 import { shouldAirJump } from "../logic/airJump";
 import { resolveActivePower, type PowerContext } from "../logic/powerDispatch";
-import { isOnClimbWall, type Rect } from "../logic/climbDetect";
+import { isOnClimbWall } from "../logic/climbDetect";
 import { facingBreakable } from "../logic/breakableDetect";
 
 /**
@@ -240,7 +240,7 @@ function stepOnce(
   const ctx: PowerContext = {
     airborne: !s.onGround,
     descending: s.vy > 0,
-    onClimbableWall: isOnClimbWall(bodyRect(s), env.climbWalls as Rect[]),
+    onClimbableWall: isOnClimbWall(bodyRect(s), env.climbWalls),
     facingBreakable: facingBreakable(bodyRect(s), s.facing, env.breakables, scaled(ABILITIES.charge.traversal?.chargeReach)) >= 0,
   };
   const active = resolveActivePower(ctx, env.unlocked);

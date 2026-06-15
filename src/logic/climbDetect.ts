@@ -11,7 +11,7 @@ export interface Rect {
 }
 
 /** True if `body` overlaps any wall rect (axis-aligned bounding-box test). */
-export function isOnClimbWall(body: Rect, walls: Rect[]): boolean {
+export function isOnClimbWall(body: Rect, walls: readonly Rect[]): boolean {
   return walls.some(
     (w) =>
       body.x < w.x + w.w &&
