@@ -13,7 +13,7 @@ import {
 } from "./physics3d";
 import { PHYSICS } from "../config/physics";
 import { RENDER_SCALE } from "../config/game";
-import { type AbilityId } from "../config/abilities";
+import { ABILITIES, type AbilityId } from "../config/abilities";
 
 const FLOOR_Y = 336; // DESIGN_FLOOR_Y(168) * RENDER_SCALE
 const FLOOR: PhysRect = { x: -2000, y: FLOOR_Y, w: 6000, h: 64 };
@@ -273,5 +273,46 @@ describe("stepPlayer — double-jump", () => {
     for (let i = 0; i < 120 && !s.onGround; i += 1) s = stepPlayer(s, idle, STEP, [FLOOR], dj);
     expect(s.onGround).toBe(true);
     expect(s.airJumpsUsed).toBe(0);
+  });
+});
+
+describe("stepPlayer — dash", () => {
+  const dashEnv: PowerEnv = { unlocked: new Set<AbilityId>(["dash"]), climbWalls: [], breakables: [] };
+  const DASH_VX = (ABILITIES.dash.traversal!.dashSpeed ?? 0) * RENDER_SCALE;
+
+  it("overrides horizontal velocity for the dash window when facing right", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], dashEnv);
+    expect(s.justDashed).toBe(true);
+    expect(s.vx).toBeCloseTo(DASH_VX, 0);
+    expect(s.dashMsRemaining).toBeGreaterThan(0);
+  });
+
+  it("covers roughly speed×duration over the window", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    const x0 = s.x;
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], dashEnv);
+    const durMs = ABILITIES.dash.traversal!.dashDurationMs ?? 0;
+    for (let i = 0; i < Math.ceil(durMs / STEP); i += 1) s = stepPlayer(s, idle, STEP, [FLOOR], dashEnv);
+    const expected = DASH_VX * (durMs / 1000);
+    expect(s.x - x0).toBeGreaterThan(expected * 0.7);
+  });
+
+  it("does nothing without the ability", () => {
+    let s = settleOnFloor();
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], NO_POWERS_ENV);
+    expect(s.justDashed).toBe(false);
+    expect(s.dashMsRemaining).toBe(0);
+  });
+
+  it("is press-not-hold: holding the button does not re-dash mid-window", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], dashEnv);
+    const remainAfter1 = s.dashMsRemaining;
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], dashEnv);
+    expect(s.dashMsRemaining).toBeLessThan(remainAfter1);
   });
 });

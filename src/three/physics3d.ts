@@ -2,6 +2,9 @@ import { PHYSICS } from "../config/physics";
 import { RENDER_SCALE } from "../config/game";
 import { ABILITIES, type AbilityId } from "../config/abilities";
 import { shouldAirJump } from "../logic/airJump";
+import { resolveActivePower, type PowerContext } from "../logic/powerDispatch";
+import { isOnClimbWall, type Rect } from "../logic/climbDetect";
+import { facingBreakable } from "../logic/breakableDetect";
 
 /**
  * Pure platformer physics for the 3D renderer — no Phaser, no Three.js.
@@ -75,6 +78,11 @@ const NO_POWERS: PowerEnv = { unlocked: new Set(), climbWalls: [], breakables: [
 /** Same body box as the 2D Player (10×22 design px, scaled). */
 export const BODY_W = 10 * RENDER_SCALE;
 export const BODY_H = 22 * RENDER_SCALE;
+
+/** Scale a design-px constant to render-px. */
+function scaled(n: number | undefined): number {
+  return (n ?? 0) * RENDER_SCALE;
+}
 
 /** Cap per-call delta so a backgrounded tab doesn't tunnel through geometry. */
 const MAX_DELTA_MS = 50;
@@ -228,11 +236,28 @@ function stepOnce(
     s.vy *= PHYSICS.VARIABLE_CUT;
   }
 
+  // Resolve the one context power button (dash / glide / charge). Reused by later powers.
+  const ctx: PowerContext = {
+    airborne: !s.onGround,
+    descending: s.vy > 0,
+    onClimbableWall: isOnClimbWall(bodyRect(s), env.climbWalls as Rect[]),
+    facingBreakable: facingBreakable(bodyRect(s), s.facing, env.breakables, scaled(ABILITIES.charge.traversal?.chargeReach)) >= 0,
+  };
+  const active = resolveActivePower(ctx, env.unlocked);
+
+  // Dash: start on the press edge when dash is the active power and not already dashing.
+  if (active === "dash" && input.powerPressed && s.dashMsRemaining <= 0) {
+    s.dashMsRemaining = ABILITIES.dash.traversal?.dashDurationMs ?? 0;
+    s.justDashed = true;
+  }
+  if (s.dashMsRemaining > 0) s.dashMsRemaining -= deltaMs;
+
   let targetVx = 0;
   if (input.left) targetVx -= PHYSICS.SPEED;
   if (input.right) targetVx += PHYSICS.SPEED;
-
-  if (s.onGround) {
+  if (s.justDashed || s.dashMsRemaining > 0) {
+    s.vx = s.facing * scaled(ABILITIES.dash.traversal?.dashSpeed);
+  } else if (s.onGround) {
     s.vx = targetVx;
   } else {
     s.vx = s.vx + (targetVx * PHYSICS.AIR_SPEED_MULT - s.vx) * PHYSICS.AIR_BLEND;
