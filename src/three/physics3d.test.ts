@@ -405,6 +405,7 @@ describe("stepPlayer — glide", () => {
   it("clamps descent to glideFallSpeed while power is held and descending", () => {
     let s = falling(glideEnv);
     s = frames3(s, 10, { powerHeld: true }, [], glideEnv);
+    // +1 absorbs fp rounding through RENDER_SCALE; the clamp fires post-integration each substep
     expect(s.vy).toBeLessThanOrEqual(GLIDE_VY + 1);
     expect(s.vy).toBeGreaterThan(0);
   });
