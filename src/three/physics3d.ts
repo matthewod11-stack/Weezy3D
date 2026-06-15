@@ -252,6 +252,22 @@ function stepOnce(
   }
   if (s.dashMsRemaining > 0) s.dashMsRemaining -= deltaMs;
 
+  // Smash a faced breakable: charge (press, grounded, flush) OR an active dash.
+  const wantCharge = active === "charge" && input.powerPressed;
+  const dashing = s.dashMsRemaining > 0 || s.justDashed;
+  if (env.unlocked.has("charge") && wantCharge) {
+    const idx = facingBreakable(bodyRect(s), s.facing, env.breakables, scaled(ABILITIES.charge.traversal?.chargeReach));
+    if (idx >= 0) { env.breakables[idx] = null; s.justSmashed = idx; }
+  } else if (dashing) {
+    const reach = Math.abs(s.vx) * dt + BODY_W; // covers this step's lunge
+    const idx = facingBreakable(bodyRect(s), s.facing, env.breakables, reach);
+    if (idx >= 0) { env.breakables[idx] = null; s.justSmashed = idx; }
+  }
+
+  // Live breakables block like solids (smashed ones are already null).
+  const liveBreakables = env.breakables.filter((b): b is PhysRect => b !== null);
+  const allSolids = liveBreakables.length ? [...solids, ...liveBreakables] : solids;
+
   let targetVx = 0;
   if (input.left) targetVx -= PHYSICS.SPEED;
   if (input.right) targetVx += PHYSICS.SPEED;
@@ -284,7 +300,7 @@ function stepOnce(
   // X
   s.x += s.vx * dt;
   let rect = bodyRect(s);
-  for (const solid of solids) {
+  for (const solid of allSolids) {
     if (!overlaps(rect, solid)) continue;
     if (s.vx > 0) {
       s.x = solid.x - BODY_W / 2;
@@ -299,7 +315,7 @@ function stepOnce(
   s.y += s.vy * dt;
   rect = bodyRect(s);
   s.onGround = false;
-  for (const solid of solids) {
+  for (const solid of allSolids) {
     if (!overlaps(rect, solid)) continue;
     if (s.vy > 0) {
       // Landing on top.
@@ -315,7 +331,7 @@ function stepOnce(
   }
 
   // Resting contact (vy was 0 after a previous landing — no overlap to resolve).
-  if (!s.onGround && s.vy >= 0 && probeGround(s, solids)) {
+  if (!s.onGround && s.vy >= 0 && probeGround(s, allSolids)) {
     s.onGround = true;
     s.vy = 0;
   }

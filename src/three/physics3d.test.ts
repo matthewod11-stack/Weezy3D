@@ -327,6 +327,56 @@ describe("stepPlayer — double-jump", () => {
   });
 });
 
+describe("stepPlayer — charge + breakables", () => {
+  function breakableAhead(): (PhysRect | null)[] {
+    return [{ x: BODY_W / 2 + 1, y: FLOOR_Y - BODY_H, w: 20, h: BODY_H }];
+  }
+
+  it("smashes the faced breakable on power-press (grounded), reporting its index", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    const breakables = breakableAhead();
+    const env: PowerEnv = { unlocked: new Set<AbilityId>(["charge"]), climbWalls: [], breakables };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], env);
+    expect(s.justSmashed).toBe(0);
+    expect(env.breakables[0]).toBeNull();
+  });
+
+  it("a live breakable blocks horizontal movement; a smashed one does not", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    const env: PowerEnv = { unlocked: new Set<AbilityId>(["charge"]), climbWalls: [], breakables: breakableAhead() };
+    let blocked = frames3(s, 30, { right: true }, [FLOOR], env);
+    expect(env.breakables[0]).not.toBeNull();
+    expect(blocked.x).toBeLessThan(20);
+    let smashed = stepPlayer({ ...s, facing: 1 }, { ...idle, powerPressed: true }, STEP, [FLOOR], env);
+    smashed = frames3(smashed, 30, { right: true }, [FLOOR], env);
+    expect(smashed.x).toBeGreaterThan(40);
+  });
+
+  it("dashing into a breakable smashes it (plow through)", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    const env: PowerEnv = {
+      unlocked: new Set<AbilityId>(["dash"]),
+      climbWalls: [],
+      breakables: [{ x: 60, y: FLOOR_Y - BODY_H, w: 20, h: BODY_H }],
+    };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], env);
+    s = frames3(s, 10, {}, [FLOOR], env);
+    expect(env.breakables[0]).toBeNull();
+  });
+
+  it("does nothing without charge or dash", () => {
+    let s = settleOnFloor();
+    s = { ...s, facing: 1 };
+    const env: PowerEnv = { unlocked: new Set<AbilityId>(), climbWalls: [], breakables: breakableAhead() };
+    s = stepPlayer(s, { ...idle, powerPressed: true }, STEP, [FLOOR], env);
+    expect(s.justSmashed).toBe(-1);
+    expect(env.breakables[0]).not.toBeNull();
+  });
+});
+
 describe("stepPlayer — dash", () => {
   const dashEnv: PowerEnv = { unlocked: new Set<AbilityId>(["dash"]), climbWalls: [], breakables: [] };
   const DASH_VX = ABILITIES.dash.traversal!.dashSpeed! * RENDER_SCALE;
