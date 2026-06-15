@@ -1,6 +1,7 @@
 import { PHYSICS } from "../config/physics";
 import { RENDER_SCALE } from "../config/game";
-import { type AbilityId } from "../config/abilities";
+import { ABILITIES, type AbilityId } from "../config/abilities";
+import { shouldAirJump } from "../logic/airJump";
 
 /**
  * Pure platformer physics for the 3D renderer — no Phaser, no Three.js.
@@ -197,6 +198,8 @@ function stepOnce(
     s.bufferMs = Math.max(0, s.bufferMs - deltaMs);
   }
 
+  if (s.onGround) s.airJumpsUsed = 0;
+
   const wantJump = s.bufferMs > 0 && (s.onGround || s.coyoteMs > 0);
   if (wantJump) {
     s.vy = PHYSICS.JUMP_VELOCITY;
@@ -204,6 +207,23 @@ function stepOnce(
     s.coyoteMs = 0;
     s.onGround = false;
     s.justJumped = true;
+  }
+
+  // Double-jump: a mid-air jump when the ground jump didn't fire this frame.
+  if (
+    shouldAirJump({
+      jumpPressed: input.jumpPressed,
+      groundJumpFired: s.justJumped,
+      onGround: s.onGround,
+      hasDoubleJump: env.unlocked.has("doubleJump"),
+      airJumpsUsed: s.airJumpsUsed,
+      maxAirJumps: ABILITIES.doubleJump.envelope?.extraJumps ?? 1,
+    })
+  ) {
+    s.vy = PHYSICS.JUMP_VELOCITY;
+    s.airJumpsUsed += 1;
+    s.justJumped = true;
+    s.justAirJumped = true;
   }
 
   if (input.jumpReleased && s.vy < 0) {
@@ -270,9 +290,9 @@ function stepOnce(
   }
 
   s.justLanded = s.onGround && !wasOnGround;
-
-  // env is threaded through for Tasks 1–5 (power behavior). Unused here.
-  void env;
+  // Touchdown happens at the Y-collision phase below the top-of-frame reset, so
+  // clear the air-jump count here too — the counter is 0 the instant feet land.
+  if (s.onGround) s.airJumpsUsed = 0;
 
   return s;
 }

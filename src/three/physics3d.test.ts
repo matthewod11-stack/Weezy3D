@@ -9,15 +9,18 @@ import {
   type FrameInput,
   type PhysRect,
   type PlayerState,
+  type PowerEnv,
 } from "./physics3d";
 import { PHYSICS } from "../config/physics";
 import { RENDER_SCALE } from "../config/game";
+import { type AbilityId } from "../config/abilities";
 
 const FLOOR_Y = 336; // DESIGN_FLOOR_Y(168) * RENDER_SCALE
 const FLOOR: PhysRect = { x: -2000, y: FLOOR_Y, w: 6000, h: 64 };
 const STEP = 1000 / 60;
 
 const idle: FrameInput = { left: false, right: false, jumpPressed: false, jumpReleased: false };
+const NO_POWERS_ENV: PowerEnv = { unlocked: new Set<AbilityId>(), climbWalls: [], breakables: [] };
 
 function frames(
   s: PlayerState,
@@ -224,5 +227,50 @@ describe("stepPlayer — power foundation (no behavior yet)", () => {
     expect(s.justSmashed).toBe(-1);
     expect(s.justAirJumped).toBe(false);
     expect(s.justDashed).toBe(false);
+  });
+});
+
+describe("stepPlayer — double-jump", () => {
+  const dj: PowerEnv = { unlocked: new Set<AbilityId>(["doubleJump"]), climbWalls: [], breakables: [] };
+
+  function jumpThenDescend(env: PowerEnv): PlayerState {
+    let s = settleOnFloor();
+    s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], env);
+    for (let i = 0; i < 60 && s.vy <= 0; i += 1) s = stepPlayer(s, idle, STEP, [FLOOR], env);
+    return s;
+  }
+
+  it("fires a second jump in the air with the ability", () => {
+    let s = jumpThenDescend(dj);
+    expect(s.vy).toBeGreaterThan(0);
+    s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], dj);
+    expect(s.justAirJumped).toBe(true);
+    expect(s.vy).toBeLessThan(0);
+    expect(s.airJumpsUsed).toBe(1);
+  });
+
+  it("allows only one air jump until landing", () => {
+    let s = jumpThenDescend(dj);
+    s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], dj);
+    for (let i = 0; i < 60 && s.vy <= 0; i += 1) s = stepPlayer(s, idle, STEP, [FLOOR], dj);
+    const before = s.vy;
+    s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], dj);
+    expect(s.justAirJumped).toBe(false);
+    expect(s.vy).toBeGreaterThanOrEqual(before - 1);
+  });
+
+  it("does nothing without the ability", () => {
+    let s = jumpThenDescend(NO_POWERS_ENV);
+    s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], NO_POWERS_ENV);
+    expect(s.justAirJumped).toBe(false);
+    expect(s.vy).toBeGreaterThan(0);
+  });
+
+  it("resets the air-jump count after landing", () => {
+    let s = jumpThenDescend(dj);
+    s = stepPlayer(s, { ...idle, jumpPressed: true }, STEP, [FLOOR], dj);
+    for (let i = 0; i < 120 && !s.onGround; i += 1) s = stepPlayer(s, idle, STEP, [FLOOR], dj);
+    expect(s.onGround).toBe(true);
+    expect(s.airJumpsUsed).toBe(0);
   });
 });
