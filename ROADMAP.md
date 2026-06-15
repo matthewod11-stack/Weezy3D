@@ -1,7 +1,12 @@
 # Princess Eloise's Big Adventure — V1 Roadmap (Web)
 
-> **V1 Goal:** Eloise can play through a complete journey from bedroom to T-Rex boss, collecting 5 companions, in a seamless HD-2D pixel art experience
-> **Tech Stack:** Phaser 3, TypeScript, Vite
+> ## ⚠️ HISTORICAL (2D) — superseded 2026-06-15
+> This is the original **2D Phaser** V1 roadmap. The 2D game was extracted to a separate repo on 2026-06-15; **Weezy3D is now the Three.js 3D game** (`src/three/`, `/3d.html`). Phases 0–7 below were all built in 2D and are kept as design/history — the 6-world journey, companions, enemies, gating, boss, and cutscene designs they describe still drive the 3D game via the shared sketch→encode level pipeline.
+>
+> **The live roadmap for the 3D game is `docs/3d-transition/weezy3d-playbook.md` §5 (next-port recipes).** Current 3D state: all 5 non-boss worlds playable as continuous runs with enemies + companions + keyboard/gamepad; **next up = port the power system (§5.4)**, then boss + cutscenes to 3D scenes (logic already kept in `src/logic/`).
+
+> **V1 Goal:** Eloise can play through a complete journey from bedroom to T-Rex boss, collecting 5 companions, in a seamless pixel-art experience
+> **Tech Stack (original):** Phaser 3, TypeScript, Vite — *now Three.js + TypeScript + Vite*
 > **Target User:** Kids (4-8) playing on desktop or tablet
 > **Target Platform:** Web (itch.io HTML5)
 > **Created:** 2026-01-24

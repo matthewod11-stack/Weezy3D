@@ -2,6 +2,32 @@
 
 ---
 
+## Session: 2026-06-15 (Weezy3D session 6 — GAMEPAD support + 2D Phaser game REMOVED)
+
+**Two arcs, both landed on `main` and verified green.** (1) Added gamepad input to the 3D game and mapped the user's 8BitDo SN30 Pro on real hardware. (2) Extracted the 2D Phaser game out of this repo — Weezy3D is now the Three.js 3D game, full stop — and refreshed all the docs for a clean slate.
+
+### Part 1 — Gamepad support (commit `822dc20`)
+- `src/three/gamepad.ts` — pure `readGamepadFrame()` + thin `GamepadInput` shell (same pure-logic/shell pattern as physics3d/enemy3d), **15 TDD'd tests**. OR-merged with the keyboard each frame in `main.ts`; enable/disable lifecycle mirrored; connect toast; live `__weezy3d.gamepad()`/`gamepadConnected()` introspection.
+- **SN30 Pro is non-standard** (`mapping:""`, 10 axes/16 buttons). Live-calibrated the real indices: **left stick = axis 0**, **D-pad = HID hat on axis 9** (UP=−1, RIGHT=−0.429, DOWN=0.143, LEFT=0.714, neutral≈3.286 — decoded by `decodeHat`), **jump = button 0 (green A)**. Mapper branches on `gamepad.mapping` so standard pads (D-pad buttons 14/15) also work.
+- Verified on the user's real controller: D-pad, stick, and jump all confirmed. (Paid-for gotcha: gamepad input only reaches a focused tab, and a hidden preview tab freezes rAF — auto-verification fails when backgrounded; playbook gotcha 14.)
+
+### Part 2 — 2D Phaser game removed (commit `44e098c`, −3,301 lines)
+- **Kept the Phaser-free reusable logic**, relocated to **`src/logic/`** (git renames, history preserved): `airJump`, `powerDispatch`, `bossFight`, `cutscene`, `menuSelection`, `aimVelocity`, `breakable/climbDetect` — the substrate for porting powers/boss/cutscenes to 3D.
+- **Deleted the 2D shells:** `index.html`, `src/main.ts`, `src/scenes/*`, the Phaser entity classes, `src/systems/{BlueprintGrid,LevelBackgroundLoader,measureSpriteFeet}`, `config/{display,blueprint,platforms}`; dropped the `main` vite entry + the `phaser` dependency.
+- The compiler was the arbiter (entity classes coupled via the ambient `Phaser` global, ungreppable) — delete → `tsc`/`vitest`/`vite build` → green. Executed on a `chore/remove-2d-game` branch, verified, merged ff to main.
+
+### Part 3 — Clean-slate doc refresh
+- `package.json` name → **`weezy3d`** (+ lockfile). `CLAUDE.md` rewritten (Tech Stack = Three.js, URLs, folder structure, Game Conventions, Current Status table). `weezy3d-playbook.md` updated (repo context, build gate 392/2-page, file-table gamepad row, gotcha 14, §5.4 powers re-pathed to `src/logic/`, footer). `ROADMAP.md` banner = historical 2D; live 3D roadmap is playbook §5.
+
+**Verification:** `tsc` clean · **392 Vitest tests pass** · `vite build` green (maps + three bundles, no phaser) · 3D boots clean with zero console errors. `src/` is now `config/ design/ levels/ logic/ state/ three/ types/`.
+
+### Next Session Should
+- **Port the power system to 3D (playbook §5.4)** — the next big milestone. The pure logic is ready in `src/logic/` (`powerDispatch`, `airJump`, `climbDetect`, `breakableDetect`) + `config/{abilities,gating,areas}`; extend `physics3d.ts`/`FrameInput` per power, test like the 13, then swap the companion-collect hook from heart-bonus to real ability grants. This unblocks Hallway/Kitchen/Family Room/Backyard past their gated seams.
+- Decide each power's gamepad button (jump = A/button 0 today; wall-climb is Up in 2D).
+- Optional later: port boss + cutscenes to 3D scenes (logic kept in `src/logic/`).
+
+---
+
 ## Session: 2026-06-12 morning (Weezy3D session 5 — candy revert + ENEMIES & COMPANIONS in 3D)
 
 **Two arcs.** (1) **Reverted the entire session-4 candy re-theme** — user verdict after playtest: not worth the effort + the lag; a regression vs. session 2/3. (2) **Ported the complete enemy system + companion cameos into the 3D layer** (playbook §5.1, the biggest gap to "playable game in 3D") via subagent-driven development — 7 tasks, each with spec-compliance + code-quality review.

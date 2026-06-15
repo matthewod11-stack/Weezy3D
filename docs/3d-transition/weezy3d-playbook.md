@@ -2,7 +2,7 @@
 
 > **What this is:** The working playbook for the 3D port, written after the first build session (2026-06-09, Fable 5). Read this first in any new session — it captures what exists, the conventions that must hold, the gotchas already paid for, and the recipes for the next ports. Companion docs: `2d-to-3d-guide.md` (the original strategy, still accurate) and `../art-direction/scenery-prompt-library.md` (per-world visual specs).
 >
-> **Repo context:** Weezy3D is an intentionally untracked copy of Weezy2 — a testing ground for 3D generation. Big swings welcome; this is not the official game.
+> **Repo context (updated 2026-06-15):** Weezy3D began as an untracked copy of Weezy2, but it's now **git-tracked and the canonical home for the 3D game** — the user works exclusively here. The **2D Phaser game was removed** (commit 44e098c); the Three.js game in `src/three/` is the whole game now. Reusable Phaser-free logic was kept in `src/logic/` (airJump, powerDispatch, bossFight, cutscene, menuSelection, aim/breakable/climb helpers). The 2D game lives in a separate repo.
 
 ---
 
@@ -16,11 +16,11 @@ Session 2 (2026-06-09 evening) added the **world theme registry** (`worldThemes.
 
 Session 5 (2026-06-12) **shipped enemies + companion cameos (§5.1 ✅)**: all 4 enemy types patrol/stomp/damage with 2D-parity semantics (`enemy3d.ts` pure + 9 tests, `enemyView.ts` billboards), ❤️ hearts HUD + invincibility blink + death→checkpoint respawn, companion preserved through the stitcher + collectible for its `heartBonus` (Teddy +1; caption "You met Teddy!"). **Bedroom is now FULLY playable as a game in 3D** (23 dust bunnies + Teddy). Spec: `docs/superpowers/specs/2026-06-12-3d-enemies-companions-design.md`. **Traversal powers (§5.4) remain the next port** — gated segments in the other four worlds still wall the player. (Same session: the pass-2 candy re-theme was reverted in full — see §5.6.)
 
-- Walk (←→/A-D), jump (Space), 24 collectible star tokens, glowing exit door → win card → replay.
-- Same `LevelData` and same `PHYSICS` constants as the 2D game — imported, not copied.
-- Full gate green: `npm run build` = tsc + **340 Vitest tests** (13 new for 3D physics) + 3-page Vite build (`/`, `/maps.html`, `/3d.html`).
+- Walk (←→/A-D), jump (Space), **+ gamepad** (`src/three/gamepad.ts`; 8BitDo SN30 Pro mapped — see §3 gotcha 14 + the file table), 24 collectible star tokens, glowing exit door → win card → replay.
+- Same `LevelData` and same `PHYSICS` constants the 2D game used — now the shared source of truth here.
+- Full gate green: `npm run build` = tsc + **392 Vitest tests** + 2-page Vite build (`/maps.html`, `/3d.html`). (The 2D `/` entry was removed 2026-06-15.)
 - Verified in-browser by driving the sim (`__weezy3d.setSimInput`): jump apex **74 design px** (2D envelope ~80), full run → exit at x≈5562 → win → replay reset. Zero console errors.
-- The 2D game is completely untouched. The 3D layer is parallel, not a migration.
+- **Weezy3D is the game now** (2D Phaser removed 2026-06-15) — not a parallel layer. The kept Phaser-free logic moved to `src/logic/`.
 
 ### The 3D layer (`src/three/`, no Phaser imports anywhere)
 
@@ -30,6 +30,7 @@ Session 5 (2026-06-12) **shipped enemies + companion cameos (§5.1 ✅)**: all 4
 | `physics3d.test.ts` | 13 tests pinning the feel | Jump apex 70–92 design px, coyote window, buffered jump, walls/ceilings/landing, substep flag accumulation. **If these pass, the 3D jump feel = the 2D jump feel.** |
 | `coords.ts` | The ONLY 2D↔3D conversion boundary | 1 world unit = 1 sketch grid (64 render px). Floor top = world y 0. One y-flip lives here and nowhere else. |
 | `input.ts` | Keyboard → `FrameInput` | Edge accumulation between rAF ticks; **repeat keydowns never establish held state** (see Gotchas). |
+| `gamepad.ts` | Gamepad → `FrameInput` | Pure `readGamepadFrame()` + thin `GamepadInput` shell (15 tests). Standard pads use D-pad buttons 14/15; **non-standard pads (8BitDo SN30 Pro, `mapping:""`) decode the D-pad from the HID hat on axis 9**. Stick = axis 0, jump = button 0. OR-merged with the keyboard in `main.ts`. |
 | `playerView.ts` | Eloise as storybook billboard | HD-2D Option A. Ports the `computeFeetOriginY` bottom-alpha scan so feet plant on platforms. Walk 10fps / jump pose / mirror-flip. Ground-cast shadow blob (analytic, doubles as landing affordance). |
 | `level3d.ts` | `LevelData` → meshes | Floor = deep carpet-textured boxes; shelves = wood boxes + lip; tokens = spinning extruded stars; exit = glowing door + breathing PointLight. **Owns the z-depth convention (§2).** |
 | `bedroomSet.ts` | World 1 set dressing | All procedural, palette-locked, deterministic (seeded LCG — no `Math.random`). Wallpaper/windows/bookshelves/toys/crayons + the full lighting rig. |
@@ -59,11 +60,11 @@ Session 5 (2026-06-12) **shipped enemies + companion cameos (§5.1 ✅)**: all 4
 - 1 world unit = 1 sketch grid = one Eloise body height. Fog/camera/lighting numbers in the scenery library are in these units and Just Work.
 
 ### Purity discipline (inherited from Weezy2, keep it)
-- Game logic = pure modules with tests (`physics3d.ts`). Rendering = thin shells that read sim state (`playerView`, `level3d`). The 2D codebase proved this pattern (`bossFight`, `cutscene`, `reachability`); it's why this port took an afternoon.
+- Game logic = pure modules with tests (`physics3d.ts`). Rendering = thin shells that read sim state (`playerView`, `level3d`). This pattern (now in `src/logic/{bossFight,cutscene,powerDispatch,…}` + `src/levels/reachability`) is why ports go fast — and why removing the 2D Phaser game was clean (the logic had no Phaser to drag along).
 - Procedural dressing uses a **seeded LCG**, never `Math.random` — renders are reproducible, screenshots comparable across sessions.
 
 ### Don't fork the design
-- Level data comes from `BEDROOM_LEVELS[n]` (sketch → encode pipeline). Edit levels in `src/design/levelSketches.ts` like always — both 2D and 3D consume the result. Never hand-author level geometry in the 3D layer.
+- Level data comes from the sketch → encode pipeline (`LEVEL_CATALOG` / `BEDROOM_LEVELS[n]`). Edit levels in `src/design/levelSketches.ts` like always — the 3D game (and `maps.html`) consume the result. Never hand-author level geometry in the 3D layer.
 
 ---
 
@@ -82,6 +83,7 @@ Session 5 (2026-06-12) **shipped enemies + companion cameos (§5.1 ✅)**: all 4
 11. **Coplanar glow panes z-fight.** A `MeshBasicMaterial` pane placed exactly on another mesh's front face renders as stripe garbage (kitchen oven window, frame face at +0.81). Offset glow panes ~0.05+ clear of the surface behind them.
 12. **Every hide path needs a symmetric show path across level reset.** `resetLevel` rebuilds STATE (enemies, hearts) but views persist — a mesh hidden on defeat stays hidden forever unless the live path re-asserts `visible = true`. Caught in review as invisible-but-damaging enemies after "Play again"; same class applies to any future toggled visual (one-frame flags, blink states, settled bobs). Pattern: views re-derive ALL visual state from sim state every frame, never latch it.
 13. **`@types/node` poisons DOM timer typings.** With it in devDeps (leftover from the deleted gen-texture script), `ReturnType<typeof window.setTimeout>` resolves to Node's `Timeout`, which doesn't accept the browser's `number`. Use an explicit `number | null` for DOM timer ids (see `hud.ts` captionTimer).
+14. **Gamepad input can't be auto-verified through the preview.** `navigator.getGamepads()` only returns a pad to a **focused** tab (and only after its first button press), and gotcha #8 (hidden tab freezes rAF) means even `setSimInput` reads as frozen when backgrounded — so an automated "press → did the player move" check fails when the tab isn't focused. **Verify controllers on real hardware, tab focused.** Unit-test the pure mapper for logic; `window.__weezy3d.gamepad()`/`gamepadConnected()` expose live pad state for an in-browser mapping tester. The 8BitDo SN30 Pro over BT on macOS reports `mapping:""` (non-standard) — its D-pad is the HID hat on **axis 9** (UP=−1, RIGHT=−0.429, DOWN=0.143, LEFT=0.714, neutral≈3.286); `gamepad.ts` decodes it.
 
 ---
 
@@ -128,8 +130,8 @@ Per-level chaining shipped in session 2, then the 2026-06-10 playtest verdict re
 ### 5.3 Remaining worlds' set dressing — ✅ DONE for all 4 catalog worlds (2026-06-09 session 2)
 Hallway, Kitchen, Family Room, Backyard shipped (see the §1 file table). Still open under this heading: **per-level hero-object variation** within a world (sets are per-world, `buildSet(minX,maxX)` only — mid-ground dressing can span pit columns; acceptable under fog but a variation seam would fix both), and the **Playhouse arena backdrop** (build it WITH the boss port so it dresses the real BossScene). Knobs-table note: treat the fog/intensity rows as *starting points* — fogNear must stay ≥12 (behind the 10.5-unit gameplay plane; pinned by test), and shipped intensities ran ~25–35% above the table rows (same as bedroom's precedent).
 
-### 5.4 Powers (when levels demand them)
-`powerDispatch.ts` and `abilities.ts` are pure and port as-is. Each power's physics hook mirrors the 2D `Player.tick` block: double-jump (air-jump via `shouldAirJump`, already pure), glide (clamp integrated vy), dash (velocity override window), wall-climb (zone check + upward velocity), charge (breakable smash). Add to `physics3d.ts` as input flags + state, test each like the existing 13.
+### 5.4 Powers (THE next big 3D task)
+The pure logic is already here, kept from the 2D game: `src/logic/powerDispatch.ts` (one-button context dispatcher), `src/logic/{airJump,climbDetect,breakableDetect}.ts`, and `src/config/{abilities,gating,areas}.ts`. The 2D `Player.tick` block that wired them is **gone** (it lived in the now-deleted `src/entities/Player.ts`; if you need the exact wiring, it's in the separate 2D repo's history) — but the per-power *behavior* is captured in those pure modules. Recipe: extend `FrameInput`/`physics3d.ts` with each power as input flags + state — double-jump (air-jump via `shouldAirJump`), glide (clamp integrated vy), dash (velocity-override window), wall-climb (`isOnClimbWall` zone check + upward velocity), charge (`facingBreakable` smash) — and test each like the existing 13. The stitcher already offsets climbWalls/breakables, so gated worlds get continuity for free. Then swap the companion-collect hook (§5.1 step 4) from heart-bonus to a real ability grant. **With gamepad now in, decide each power's button** (jump = button 0 / A today; wall-climb is Up in 2D).
 
 ### 5.5 Polish backlog (do after enemies, not before)
 - Depth-of-field (EffectComposer + BokehPass) for the macro-photo blur; subtle bloom for lamp/exit.
@@ -163,4 +165,4 @@ Pipeline: `scripts/gen-texture.mjs` (Gemini image API, key auto-read from `~/.zs
 - **Document as you land** — PROGRESS.md session entry + CLAUDE.md status line + this playbook's §1/§3 updated in the same session as the change. This doc is the handoff: if it's stale, the next session pays.
 - **The human plays; the agent proves.** Feel-tuning (camera, fog, light intensity, walk anim speed) is a human-at-keyboard call — surface the knob locations, don't silently re-tune them.
 
-*Updated 2026-06-12 (session 5: candy re-theme reverted in full — §5.6; enemies + companion cameos shipped — §5.1 ✅; gotchas 12–13 added; debug handle gained getHearts/enemyStates/companionMet/companionAt). Keep §1 and §3 current; append recipes as systems land.*
+*Updated 2026-06-15 (session 6: **gamepad support shipped** — `gamepad.ts`, 8BitDo SN30 Pro mapped, gotcha 14 + file-table row; **2D Phaser game removed** — `src/three/` is the game, reusable logic relocated to `src/logic/`, repo now git-tracked + canonical; build gate now 392 tests / 2-page; §5.4 powers recipe re-pathed to `src/logic/`). Previously 2026-06-12 (session 5: candy re-theme reverted — §5.6; enemies + companion cameos — §5.1 ✅; gotchas 12–13). Keep §1 and §3 current; append recipes as systems land.*
