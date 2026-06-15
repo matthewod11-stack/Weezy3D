@@ -222,5 +222,7 @@ describe("stepPlayer — power foundation (no behavior yet)", () => {
     expect(s.airJumpsUsed).toBe(0);
     expect(s.dashMsRemaining).toBe(0);
     expect(s.justSmashed).toBe(-1);
+    expect(s.justAirJumped).toBe(false);
+    expect(s.justDashed).toBe(false);
   });
 });

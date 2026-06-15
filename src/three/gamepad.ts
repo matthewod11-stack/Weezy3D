@@ -22,6 +22,7 @@ import type { FrameInput } from "./physics3d";
 
 const BTN_JUMP = 0;
 const BTN_POWER = 1;
+const BTN_DPAD_UP = 12;
 const BTN_DPAD_LEFT = 14;
 const BTN_DPAD_RIGHT = 15;
 const AXIS_LX = 0;
@@ -97,11 +98,13 @@ export function readGamepadFrame(
 
   const x = snapshot.axes[AXIS_LX] ?? 0;
   const y = snapshot.axes[AXIS_LY] ?? 0;
-  // D-pad: standard pads use buttons 14/15; non-standard pads (8BitDo over BT)
-  // route it through the hat axis. Either way it ORs with the analog stick.
+  // D-pad: standard pads use buttons 12/14/15; non-standard pads (8BitDo over
+  // BT) route it through the hat axis. Either way it ORs with the analog stick.
+  // `dpad.down` is decoded but currently unused — reserved for a future
+  // crouch / look-down; no consumer reads it yet.
   const dpad =
     snapshot.mapping === "standard"
-      ? { left: held(snapshot, BTN_DPAD_LEFT), right: held(snapshot, BTN_DPAD_RIGHT), up: false, down: false }
+      ? { left: held(snapshot, BTN_DPAD_LEFT), right: held(snapshot, BTN_DPAD_RIGHT), up: held(snapshot, BTN_DPAD_UP), down: false }
       : decodeHat(snapshot.axes[AXIS_HAT] ?? 0);
   const left = dpad.left || x < -STICK_DEADZONE;
   const right = dpad.right || x > STICK_DEADZONE;
