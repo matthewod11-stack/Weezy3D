@@ -68,11 +68,21 @@ describe("stepPlayer — wall-climb", () => {
     expect(s.vy).toBeGreaterThanOrEqual(0);
   });
 
-  it("does not climb off the wall even with up held", () => {
+  it("does not climb when not overlapping a climbWall", () => {
     let s = settleOnFloor();
     const env: PowerEnv = { unlocked: new Set<AbilityId>(["wallClimb"]), climbWalls: [{ x: 9000, y: 0, w: 10, h: 10 }], breakables: [] };
     s = stepPlayer(s, { ...idle, up: true }, STEP, [FLOOR], env);
     expect(s.onGround).toBe(true);
+  });
+
+  it("resumes falling gravity when up is released mid-climb", () => {
+    let s = settleOnFloor();
+    s = frames3(s, 5, { up: true }, [FLOOR], climbEnv());      // ascend
+    const vyClimb = s.vy;                                      // pinned at -climbSpeed
+    s = stepPlayer(s, { ...idle }, STEP, [FLOOR], climbEnv()); // release up
+    expect(s.vy).toBeGreaterThan(vyClimb);                     // gravity resumed (vy rising toward fall)
+    s = frames3(s, 40, {}, [FLOOR], climbEnv());
+    expect(s.onGround).toBe(true);                             // coasted up, then fell back to floor
   });
 });
 
