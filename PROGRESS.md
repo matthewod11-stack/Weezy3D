@@ -109,7 +109,7 @@ Spec: `docs/superpowers/specs/2026-06-12-3d-enemies-companions-design.md` · Pla
 
 ## Session: 2026-06-11 afternoon (Weezy3D session 4 — backgrounds pass 2: candy re-theme, bedroom pilot + density + perf round 1)
 
-**Goal:** Re-theme all five 3D worlds toward the user's 3 cartoony/fantastical inspiration JPEGs (repo root: `Bedroom.jpg`, `Kitchen.jpg`, `Living ROom.jpg`) via AI-generated textures on the existing procedural geometry — sequential, world-by-world, learning per world. **Bedroom (pilot) shipped; hallway→backyard pending; a perf investigation is open.** Spec: `docs/superpowers/specs/2026-06-11-3d-backgrounds-pass2-candy-design.md`; plan: `docs/superpowers/plans/2026-06-11-3d-backgrounds-pass2-candy.md`; learnings: playbook §5.6.
+**Goal:** Re-theme all five 3D worlds toward the user's 3 cartoony/fantastical inspiration JPEGs (`docs/reference-art/`: `Bedroom.jpg`, `Kitchen.jpg`, `Living ROom.jpg`) via AI-generated textures on the existing procedural geometry — sequential, world-by-world, learning per world. **Bedroom (pilot) shipped; hallway→backyard pending; a perf investigation is open.** Spec: `docs/superpowers/specs/2026-06-11-3d-backgrounds-pass2-candy-design.md`; plan: `docs/superpowers/plans/2026-06-11-3d-backgrounds-pass2-candy.md`; learnings: playbook §5.6.
 
 ### Completed
 - **Texture pipeline:** `scripts/gen-texture.mjs` (Gemini image API direct, key from env/`~/.zshrc`, inspiration JPEGs as style refs per call) + fixed nanobanana-mcp's missing `GOOGLE_AI_API_KEY` env in `~/.claude.json` (now connects). `@types/node` added as devDep.

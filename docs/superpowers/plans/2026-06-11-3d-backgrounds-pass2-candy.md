@@ -457,7 +457,7 @@ Shared style suffix for ALL generations (append to every prompt):
 
 > *Cartoony fantastical children's 3D-render style, ultra-saturated candy colors, soft glossy rounded shapes, cheerful and magical. Match the rendering style and palette energy of the attached reference image exactly. No text, no watermark, no characters, no people.*
 
-- [ ] **Step 1: Generate the four textures** (ref = the user's `Bedroom.jpg` at repo root; pro model; iterate prompts if output misses):
+- [ ] **Step 1: Generate the four textures** (ref = the user's `Bedroom.jpg` in `docs/reference-art/`; pro model; iterate prompts if output misses):
 
 ```bash
 R="Bedroom.jpg"; S="Cartoony fantastical children's 3D-render style, ultra-saturated candy colors, soft glossy rounded shapes, cheerful and magical. Match the rendering style and palette energy of the attached reference image exactly. No text, no watermark, no characters, no people."

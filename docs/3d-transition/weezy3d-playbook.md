@@ -161,7 +161,7 @@ All five powers are live in `src/three/physics3d.ts`. Spec: `docs/superpowers/sp
 
 Pipeline: `scripts/gen-texture.mjs` (Gemini image API, key auto-read from `~/.zshrc`; the nanobanana MCP env was also fixed). Spec: `docs/superpowers/specs/2026-06-11-3d-backgrounds-pass2-candy-design.md`. Per-world loop: generate → wire → screenshot → iterate → gate → record here.
 
-1. **Reference images carry the style.** Attach the user's inspiration JPEG(s) (repo root: `Bedroom.jpg`, `Kitchen.jpg`, `Living ROom.jpg`) to every call; describe only the *subject* in the prompt. 3 of 4 bedroom textures were first-shot keepers.
+1. **Reference images carry the style.** Attach the user's inspiration JPEG(s) (`docs/reference-art/`: `Bedroom.jpg`, `Kitchen.jpg`, `Living ROom.jpg`) to every call; describe only the *subject* in the prompt. 3 of 4 bedroom textures were first-shot keepers.
 2. **Object-face textures must demand full-bleed**: "fills 100% of the frame edge to edge, NO background, NO floor, like a texture swatch." Without it the model paints the object *in a scene* and the background becomes a flat slab on the mesh.
 3. **MirroredRepeatWrapping makes any output tile seamlessly** (`loadCandyTexture` default). The kaleidoscope mirroring reads as intentional damask. Wallpaper tile size: **5 world units** is right; 8 was so large the pattern competed with the play layer.
 4. **Hero placement: use segment-spawn fractions.** Checkpoint spawns (`__weezy3d.segments[i].spawn`) are the only data-guaranteed open flat floor. Arbitrary fractions hit a platform (0.62) and a pit (0.57); bedroom's chest lives at segment-3's 0.563.

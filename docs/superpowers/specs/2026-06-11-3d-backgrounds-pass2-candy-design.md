@@ -1,7 +1,7 @@
 # 3D Backgrounds Pass 2 — Candy-Fantastical Texture Pass
 
 **Date:** 2026-06-11 · **Status:** Approved design
-**Inspiration:** 3 user-generated concept JPEGs in repo root — `Bedroom.jpg`, `Kitchen.jpg`, `Living ROom.jpg`. Cartoony / fantastical / saturated; stimulus for design, not pixel targets.
+**Inspiration:** 3 user-generated concept JPEGs in `docs/reference-art/` — `Bedroom.jpg`, `Kitchen.jpg`, `Living ROom.jpg`. Cartoony / fantastical / saturated; stimulus for design, not pixel targets.
 
 ## Goal
 
