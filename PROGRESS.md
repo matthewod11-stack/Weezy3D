@@ -15,7 +15,9 @@
 - **Camera & presentation** — micro-shake channel, dash FOV kick, win dolly-in, follows Eloise down into pits (critic finding: kids lost sight of her); death/respawn fades; CSS vignette; token-count pulse; controls hint teaches X-power/climb; token collect pop; exit-door glow halo; lattice/plank skins on climb walls/breakables.
 - **Perf discipline** — tokens no longer cast shadows (125 casters saved); world census: casters 270→106, `PCFSoftShadowMap` deprecation dodged via `sun.shadow.radius`.
 
-**Gate:** 464 tests green (432→464), tsc clean, build passes, browser-verified (segment screenshot tour + numeric probes). **Next (needs user approval):** apply the §5.7 cookbook to Hallway/Kitchen/FamilyRoom/Backyard; queued experiments: painted far-plane backgrounds, NanoBanana pose batch (dash/glide/climb/hurt), WebAudio blips, diegetic win beat.
+**Gate:** 464 tests green (432→464), tsc clean, build passes, browser-verified (segment screenshot tour + numeric probes). **Next (needs user approval):** apply the §5.7 cookbook to Hallway/Kitchen/FamilyRoom/Backyard; queued experiments: NanoBanana pose batch (dash/glide/climb/hurt), WebAudio blips, diegetic win beat.
+
+**Addendum (2026-07-02): PAINTED DIORAMA at `?look=painted`.** User verdict on the procedural look: "blah, not majestic" + asked whether to switch engines (Unreal). Diagnosis: art direction, not engine — Three.js isn't the ceiling being hit. Shipped the painted-diorama experiment (commit 9ff9903): 5 fresh NanoBanana backdrop paintings style-locked to the reference art hung as per-segment planes, procedural wall/landmarks sit out, candy palette, UnrealBloomPass glow. A/B: `/3d.html?world=bedroom` (procedural) vs `/3d.html?world=bedroom&look=painted`. Recipe + prompt pattern in playbook §5.7. Awaiting user playtest verdict (incl. FPS with bloom) before rolling to other worlds.
 
 ---
 
