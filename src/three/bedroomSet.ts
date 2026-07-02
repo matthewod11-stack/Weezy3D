@@ -716,11 +716,19 @@ function driftMotes(field: MoteField, t: number): void {
 export function buildBedroomSet(
   minX: number,
   maxX: number,
-  opts: { paintedWall?: boolean } = {},
+  opts: { paintedWall?: boolean; floors?: Array<[number, number]> } = {},
 ): WorldSet {
   const rand = makeRand(20260609);
   const group = new THREE.Group();
   const width = maxX - minX;
+
+  // Pit-aware dressing (§5.6 #7, relearned in the 2026-07-02 playtest:
+  // clutter floated over floor gaps). `floors` = world-unit x-ranges of real
+  // floor; items keep `margin` units clear of every edge. No ranges given →
+  // everything passes (tests, dev slices).
+  const floors = opts.floors ?? null;
+  const onFloor = (x: number, margin = 1): boolean =>
+    !floors || floors.some(([a, b]) => x >= a + margin && x <= b - margin);
 
   // Painted-diorama mode (`?look=painted`): the wall layer — wallpaper,
   // windows, curtains, decals, shafts — is replaced by painted backdrop
@@ -765,7 +773,9 @@ export function buildBedroomSet(
   // landmarks in front of painted shelves read as cardboard props, so they
   // sit out (rand draws still burned for placement determinism). ──────────
   const mobiles: THREE.Group[] = [];
-  cadenceSpots(minX + 14, maxX - 10, 35, 45, rand).forEach((x, i) => {
+  cadenceSpots(minX + 14, maxX - 10, 35, 45, rand)
+    .filter((x) => onFloor(x, 2))
+    .forEach((x, i) => {
     switch (i % 4) {
       case 0: {
         const shelf = buildBookshelf(x, rand);
@@ -798,7 +808,9 @@ export function buildBedroomSet(
   const blockColors = paintedWall
     ? [0xf7a8c9, 0x9fd0f5, 0xaee8c0, 0xffdf91]
     : [BEDROOM.sage, BEDROOM.butter, BEDROOM.rose, BEDROOM.teal];
-  cadenceSpots(minX + 3, maxX - 3, 9, 14, rand).forEach((x, i) => {
+  cadenceSpots(minX + 3, maxX - 3, 9, 14, rand)
+    .filter((x) => onFloor(x, 1.2))
+    .forEach((x, i) => {
     if (rand() < 0.3) {
       group.add(buildBall(x, rand));
       return;
@@ -812,7 +824,9 @@ export function buildBedroomSet(
 
   // ── Foreground crumbs every ~25–30 units, rotating small items. ────────
   const crayonColors = [BEDROOM.teal, 0xe07a5f, BEDROOM.sage, BEDROOM.butter];
-  cadenceSpots(minX + 5, maxX - 4, 25, 30, rand).forEach((x, i) => {
+  cadenceSpots(minX + 5, maxX - 4, 25, 30, rand)
+    .filter((x) => onFloor(x, 1.2))
+    .forEach((x, i) => {
     switch (i % 4) {
       case 0:
         group.add(buildCrayon(x, crayonColors[Math.floor(rand() * crayonColors.length)]!, (rand() - 0.5) * 0.3));
@@ -828,8 +842,24 @@ export function buildBedroomSet(
     }
   });
 
-  // ── The hero lamp — once, near the middle of the world, with its rug. ──
-  const lampX = minX + width * 0.5 + (rand() - 0.5) * 6;
+  // ── The hero lamp — once, near the middle of the world, with its rug.
+  // Snapped onto a real floor range wide enough for nightstand + rug. ─────
+  let lampX = minX + width * 0.5 + (rand() - 0.5) * 6;
+  if (floors && floors.length > 0) {
+    const pool = floors.filter(([a, b]) => b - a >= 14);
+    const candidates = pool.length > 0 ? pool : floors;
+    let best = lampX;
+    let bestDist = Infinity;
+    for (const [a, b] of candidates) {
+      const clamped = Math.min(Math.max(lampX, a + 6), b - 3);
+      const d = Math.abs(clamped - lampX);
+      if (d < bestDist) {
+        bestDist = d;
+        best = clamped;
+      }
+    }
+    lampX = best;
+  }
   const lamp = buildNightstandLamp(lampX);
   group.add(lamp.group);
   group.add(buildRagRug(lampX - 2.6));

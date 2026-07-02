@@ -130,12 +130,15 @@ async function boot(): Promise<void> {
   if (painted) {
     composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
+    // Tuned down from 0.35/0.5/0.85 after playtest: the lamp bloomed into a
+    // fireball and Eloise's white dress caught the pass. Only true highlights
+    // (fairy lights, glow disc, exit halo) should clear the threshold now.
     composer.addPass(
       new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.35,
-        0.5,
-        0.85,
+        0.22,
+        0.4,
+        0.92,
       ),
     );
   }
@@ -161,9 +164,14 @@ async function boot(): Promise<void> {
 
   const worldMinX = toWorldX(level.bounds.minX);
   const worldMaxX = toWorldX(level.bounds.maxX);
+  // World-unit x-ranges of real floor (thickness tell matches level3d's) —
+  // dressing must not float over pits (2026-07-02 playtest finding).
+  const floorRanges: Array<[number, number]> = level.platforms
+    .filter((p) => p.h >= 55)
+    .map((p) => [toWorldX(p.x), toWorldX(p.x + p.w)]);
   const set =
-    painted && world.areaId === "bedroom"
-      ? buildBedroomSet(worldMinX, worldMaxX, { paintedWall: true })
+    world.areaId === "bedroom"
+      ? buildBedroomSet(worldMinX, worldMaxX, { paintedWall: painted, floors: floorRanges })
       : theme.buildSet(worldMinX, worldMaxX);
   scene.add(set.group);
   // Soft storybook shadow edges (the r184-sanctioned lever — see renderer note).

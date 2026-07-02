@@ -352,9 +352,42 @@ function buildExit(exit: LevelData["exit"]): { group: THREE.Group; glow: THREE.P
   return { group, glow };
 }
 
+/**
+ * Dark "under the floorboards" plane visible through pit gaps — without it a
+ * pit shows the raw page background (2026-07-02 playtest: "gaps in the floor
+ * are really ugly and don't make sense"). Warm darkness reads as fall-able
+ * depth; the kill plane lives well inside it.
+ */
+function buildUnderFloor(data: LevelData): THREE.Mesh {
+  const minX = toWorldX(data.bounds.minX);
+  const maxX = toWorldX(data.bounds.maxX);
+  const depth = 12; // world units below the floor line
+  const cv = document.createElement("canvas");
+  cv.width = 2;
+  cv.height = 128;
+  const ctx = cv.getContext("2d")!;
+  const g = ctx.createLinearGradient(0, 0, 0, 128);
+  g.addColorStop(0, "#5a4234"); // just under the floor lip — warm shadow
+  g.addColorStop(0.35, "#39291f");
+  g.addColorStop(1, "#180f0a"); // the deep dark
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 2, 128);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(maxX - minX, depth),
+    new THREE.MeshBasicMaterial({ map: tex, fog: false }),
+  );
+  // Inside the floor boxes' z-range, so floor occludes it everywhere but pits.
+  mesh.position.set((minX + maxX) / 2, -depth / 2, -2.4);
+  return mesh;
+}
+
 export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SURFACES): LevelBuild {
   const group = new THREE.Group();
   const solids: PhysRect[] = [];
+
+  group.add(buildUnderFloor(data));
 
   for (const p of data.platforms) {
     // Floor segments are authored with the (thicker) FLOOR_THICKNESS; shelves
