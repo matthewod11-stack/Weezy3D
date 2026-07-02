@@ -18,6 +18,11 @@ import { abilitiesForArea } from "../config/gating";
 import type { AbilityId } from "../config/abilities";
 import { animateExit, animateTokens, buildLevel, TOKEN_POP_MS } from "./level3d";
 import { createFxPool } from "./fx";
+import { buildPaintedBackdrop, hasPaintedBackdrop } from "./paintedBackdrop";
+import { buildBedroomSet } from "./bedroomSet";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { themeForArea } from "./worldThemes";
 import { PlayerView } from "./playerView";
 import { Hud } from "./hud";
@@ -76,6 +81,10 @@ async function boot(): Promise<void> {
   const world = worlds[worldIndex]!;
   const worldLabel = WORLD_LABELS[world.areaId] ?? world.areaId;
   const theme = themeForArea(world.areaId);
+  // `?look=painted` — the painted-diorama experiment (A/B vs the procedural
+  // look): painted backdrop planes replace the procedural wall layer, floor
+  // goes pink to match the art, and a gentle bloom pass frames the glow.
+  const painted = params.get("look") === "painted" && hasPaintedBackdrop(world.areaId);
 
   // ── Level data: same source + scaling as 2D, then stitched continuous ──
   const scaledLevels = world.entries.map((e) =>
@@ -98,8 +107,15 @@ async function boot(): Promise<void> {
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(theme.background ?? theme.fogColor);
-  scene.fog = new THREE.Fog(theme.fogColor, theme.fogNear, theme.fogFar);
+  if (painted) {
+    // Rosy palette + fog pushed out so the mid-ground keeps its saturation
+    // against the (fog-free) painted backdrop. fogNear stays ≥ 12.
+    scene.background = new THREE.Color(0xf6dfe8);
+    scene.fog = new THREE.Fog(0xf6dfe8, theme.fogNear + 6, theme.fogFar + 10);
+  } else {
+    scene.background = new THREE.Color(theme.background ?? theme.fogColor);
+    scene.fog = new THREE.Fog(theme.fogColor, theme.fogNear, theme.fogFar);
+  }
 
   const camera = new THREE.PerspectiveCamera(
     42,
@@ -108,9 +124,35 @@ async function boot(): Promise<void> {
     120,
   );
 
+  // Painted mode: gentle bloom so fairy lights / lamp / exit door actually
+  // glow. Threshold 0.85 keeps the pass off the mid-tones (and the cost low).
+  let composer: EffectComposer | null = null;
+  if (painted) {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(
+      new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.35,
+        0.5,
+        0.85,
+      ),
+    );
+  }
+
   // ── World ───────────────────────────────────────────────────────────────
-  const build = buildLevel(level, theme.surfaces);
+  // Painted mode: pink shag floor to match the backdrop paintings.
+  const surfaces = painted
+    ? {
+        ...theme.surfaces,
+        floorBase: "#f2c3d6", // pink shag to match the backdrop paintings
+        platformColor: 0xf0cf9a, // honey wood — harmonizes with painted shelves
+        lipColor: 0xc08f4e,
+      }
+    : theme.surfaces;
+  const build = buildLevel(level, surfaces);
   scene.add(build.group);
+  if (painted) scene.add(buildPaintedBackdrop(world.areaId, segments));
 
   // Shared one-shot particle pool (landing dust, token sparkle, smash debris,
   // stomp poofs) — ONE THREE.Points for the whole world per the perf budget.
@@ -119,7 +161,10 @@ async function boot(): Promise<void> {
 
   const worldMinX = toWorldX(level.bounds.minX);
   const worldMaxX = toWorldX(level.bounds.maxX);
-  const set = theme.buildSet(worldMinX, worldMaxX);
+  const set =
+    painted && world.areaId === "bedroom"
+      ? buildBedroomSet(worldMinX, worldMaxX, { paintedWall: true })
+      : theme.buildSet(worldMinX, worldMaxX);
   scene.add(set.group);
   // Soft storybook shadow edges (the r184-sanctioned lever — see renderer note).
   set.sun.shadow.radius = 4;
@@ -383,6 +428,7 @@ async function boot(): Promise<void> {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    composer?.setSize(window.innerWidth, window.innerHeight);
   });
 
   // ── Debug handle (drives browser-based verification) ────────────────────
@@ -581,7 +627,8 @@ async function boot(): Promise<void> {
     set.update?.(dtMs, elapsed);
     updateCamera(dtMs);
 
-    renderer.render(scene, camera);
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
 

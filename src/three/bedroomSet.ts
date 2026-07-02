@@ -713,12 +713,23 @@ function driftMotes(field: MoteField, t: number): void {
 }
 
 /** Dress the room across the level's world-space x range. */
-export function buildBedroomSet(minX: number, maxX: number): WorldSet {
+export function buildBedroomSet(
+  minX: number,
+  maxX: number,
+  opts: { paintedWall?: boolean } = {},
+): WorldSet {
   const rand = makeRand(20260609);
   const group = new THREE.Group();
   const width = maxX - minX;
 
-  group.add(buildWallpaper(minX, maxX));
+  // Painted-diorama mode (`?look=painted`): the wall layer — wallpaper,
+  // windows, curtains, decals, shafts — is replaced by painted backdrop
+  // planes (paintedBackdrop.ts). Everything in FRONT of the wall (landmarks,
+  // clutter, lamp, motes, lights) stays: 3D depth over painted far plane.
+  // The cadence rand() calls still run so mid/clutter placement is identical
+  // in both looks (A/B compares the wall treatment, not a reshuffle).
+  const paintedWall = opts.paintedWall === true;
+  if (!paintedWall) group.add(buildWallpaper(minX, maxX));
 
   // ── Wall layer: window / decal alternation on a ~28–32 cadence, so a
   // window lands every ~55–65 units without metronoming. ─────────────────
@@ -726,44 +737,67 @@ export function buildBedroomSet(minX: number, maxX: number): WorldSet {
   cadenceSpots(minX + 8, maxX - 6, 27, 33, rand).forEach((x, i) => {
     if (i % 2 === 0) {
       windowXs.push(x);
-      group.add(buildWindow(x));
-      group.add(buildCurtains(x, rand));
-      group.add(buildLightShaft(x, rand));
-    } else {
+      if (!paintedWall) {
+        group.add(buildWindow(x));
+        group.add(buildCurtains(x, rand));
+        group.add(buildLightShaft(x, rand));
+      } else {
+        buildCurtains(x, rand); // burn the same rand() draws (determinism)
+      }
+    } else if (!paintedWall) {
       group.add(buildWallDecal(x, rand));
+    } else {
+      buildWallDecal(x, rand); // burn rand() draws
     }
   });
   if (windowXs.length === 0) {
     // Degenerate tiny range (tests, dev slices): guarantee one window.
     const x = (minX + maxX) / 2;
     windowXs.push(x);
-    group.add(buildWindow(x));
-    group.add(buildLightShaft(x, rand));
+    if (!paintedWall) {
+      group.add(buildWindow(x));
+      group.add(buildLightShaft(x, rand));
+    }
   }
 
-  // ── Mid-ground landmarks every ~35–45 units, rotating through builders. ─
+  // ── Mid-ground landmarks every ~35–45 units, rotating through builders.
+  // Painted mode: the backdrop paintings carry the furniture — procedural
+  // landmarks in front of painted shelves read as cardboard props, so they
+  // sit out (rand draws still burned for placement determinism). ──────────
   const mobiles: THREE.Group[] = [];
   cadenceSpots(minX + 14, maxX - 10, 35, 45, rand).forEach((x, i) => {
     switch (i % 4) {
-      case 0:
-        group.add(buildBookshelf(x, rand));
-        break;
-      case 1: {
-        const crib = buildCrib(x, rand);
-        mobiles.push(crib.mobile);
-        group.add(crib.group);
+      case 0: {
+        const shelf = buildBookshelf(x, rand);
+        if (!paintedWall) group.add(shelf);
         break;
       }
-      case 2:
-        group.add(buildToyChest(x, rand));
+      case 1: {
+        const crib = buildCrib(x, rand);
+        if (!paintedWall) {
+          mobiles.push(crib.mobile);
+          group.add(crib.group);
+        }
         break;
-      default:
-        group.add(buildTeddy(x, rand));
+      }
+      case 2: {
+        const chest = buildToyChest(x, rand);
+        if (!paintedWall) group.add(chest);
+        break;
+      }
+      default: {
+        const teddy = buildTeddy(x, rand);
+        if (!paintedWall) group.add(teddy);
+      }
     }
   });
 
   // ── Toy clutter every ~9–14 units — denser, varied, shadow-free. ───────
-  const blockColors = [BEDROOM.sage, BEDROOM.butter, BEDROOM.rose, BEDROOM.teal];
+  // Painted mode trades the muted nursery palette for candy pastels so the
+  // 3D floor toys sit in the same color world as the backdrop paintings.
+  const blockColors = paintedWall
+    ? [0xf7a8c9, 0x9fd0f5, 0xaee8c0, 0xffdf91]
+    : [BEDROOM.sage, BEDROOM.butter, BEDROOM.rose, BEDROOM.teal];
   cadenceSpots(minX + 3, maxX - 3, 9, 14, rand).forEach((x, i) => {
     if (rand() < 0.3) {
       group.add(buildBall(x, rand));
