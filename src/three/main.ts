@@ -151,6 +151,7 @@ async function boot(): Promise<void> {
         floorBase: "#f2c3d6", // pink shag to match the backdrop paintings
         platformColor: 0xf0cf9a, // honey wood — harmonizes with painted shelves
         lipColor: 0xc08f4e,
+        plush: true, // Wonder-style quilt terrain — the platform is the art
       }
     : theme.surfaces;
   const build = buildLevel(level, surfaces);

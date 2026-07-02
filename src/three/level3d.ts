@@ -59,6 +59,12 @@ export interface WorldSurfaces {
   floorTexture(baseColor: string): THREE.Texture;
   platformColor: number;
   lipColor: number;
+  /**
+   * Mario-Wonder-style terrain (painted-diorama mode): platforms become
+   * quilted-blanket bodies with a plush rounded top lip instead of flat
+   * single-color boxes. The terrain is the art, not a placeholder.
+   */
+  plush?: boolean;
 }
 
 /** Bedroom look — the original carpet/wood materials, kept as the default. */
@@ -111,6 +117,155 @@ function carpetTexture(base: string): THREE.Texture {
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(6, 6);
   return tex;
+}
+
+/**
+ * Quilted-blanket terrain face — the bedroom's answer to Wonder's patterned
+ * dirt: diamond lattice stitching with tiny hearts in alternating cells.
+ * One 256px tile cached; meshes clone it to set their own repeat.
+ */
+function quiltTexture(): THREE.Texture {
+  return makeCanvasTexture("quilt", 256, (ctx, rand) => {
+    ctx.fillStyle = "#f2b9cf";
+    ctx.fillRect(0, 0, 256, 256);
+    // Soft per-cell shading variation so the quilt reads padded.
+    const cell = 64;
+    for (let y = 0; y < 256; y += cell) {
+      for (let x = 0; x < 256; x += cell) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.04 + rand() * 0.07})`;
+        ctx.beginPath();
+        ctx.ellipse(x + cell / 2, y + cell / 2, cell * 0.42, cell * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Diamond stitch lattice.
+    ctx.strokeStyle = "rgba(201, 122, 158, 0.65)";
+    ctx.lineWidth = 3;
+    for (let d = -256; d <= 512; d += cell) {
+      ctx.beginPath();
+      ctx.moveTo(d, 0);
+      ctx.lineTo(d + 256, 256);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(d + 256, 0);
+      ctx.lineTo(d, 256);
+      ctx.stroke();
+    }
+    // Tiny hearts at alternating lattice intersections.
+    ctx.fillStyle = "rgba(255, 245, 235, 0.85)";
+    for (let y = 0; y <= 256; y += cell) {
+      for (let x = ((y / cell) % 2) * cell; x <= 256; x += cell * 2) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.beginPath();
+        ctx.arc(-3, -2, 3.4, 0, Math.PI * 2);
+        ctx.arc(3, -2, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-6.2, -0.5);
+        ctx.lineTo(0, 7);
+        ctx.lineTo(6.2, -0.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  });
+}
+
+/** Plush pale-pink carpet for terrain top lips (denser, fluffier speckle). */
+function plushTexture(): THREE.Texture {
+  return makeCanvasTexture("plush", 128, (ctx, rand) => {
+    ctx.fillStyle = "#fbe0eb";
+    ctx.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 2400; i += 1) {
+      const x = rand() * 128;
+      const y = rand() * 128;
+      ctx.fillStyle = rand() > 0.5 ? "rgba(255, 255, 255, 0.16)" : "rgba(214, 148, 178, 0.12)";
+      ctx.fillRect(x, y, 1.8, 1.8);
+    }
+  });
+}
+
+/**
+ * Wonder-style plush platform: quilted body + rounded plush top lip that
+ * slightly overhangs the sides. The lip's top stays flush with the physics
+ * top (Eloise stands ON the plush, never in it); the front face stays at
+ * z = 0 per the diorama convention.
+ */
+function buildPlushPlatform(
+  p: LevelData["platforms"][number],
+  isFloor: boolean,
+): THREE.Group {
+  const { cx, cy, w, h } = rectCenterWorld(p);
+  const depth = isFloor ? FLOOR_DEPTH : SHELF_DEPTH;
+  const zCenter = isFloor ? FLOOR_Z_CENTER : SHELF_Z_CENTER;
+  const group = new THREE.Group();
+
+  const lipH = Math.min(0.34, h * 0.45);
+  const bodyH = h - lipH;
+
+  // Quilted body (everything below the lip). Per-mesh texture clone so the
+  // pattern repeat tracks the platform's world size without stretching.
+  const quilt = quiltTexture().clone();
+  quilt.needsUpdate = true;
+  quilt.repeat.set(Math.max(1, w / 2.6), Math.max(0.5, bodyH / 2.6));
+  // Emissive-map lift = Wonder's flat-bright terrain: the quilt stays
+  // readable saturated pink even on shadowed faces. Quilt goes on the
+  // front/back faces only — box UVs crush the pattern on the depth-spanning
+  // side walls (visible in pits), which get a soft solid pink instead.
+  const quiltMat = new THREE.MeshLambertMaterial({
+    map: quilt,
+    emissive: 0xffffff,
+    emissiveMap: quilt,
+    emissiveIntensity: 0.45,
+  });
+  const sideMat = new THREE.MeshLambertMaterial({
+    color: 0xe3a8c0,
+    emissive: 0x8f6377,
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, bodyH, depth), [
+    sideMat, // +x
+    sideMat, // -x
+    sideMat, // +y
+    sideMat, // -y
+    quiltMat, // +z (the diorama front face)
+    quiltMat, // -z
+  ]);
+  body.position.set(cx, cy - lipH / 2, zCenter);
+  body.receiveShadow = true;
+  body.castShadow = !isFloor;
+  group.add(body);
+
+  // Plush lip: slight x-overhang, rounded ends via a capsule-ish trio —
+  // one slab + two end cylinders (cheap rounding, no addons dependency).
+  const plushTex = plushTexture().clone();
+  plushTex.needsUpdate = true;
+  plushTex.repeat.set(Math.max(1, w / 2.2), 1);
+  const lipMat = new THREE.MeshLambertMaterial({
+    map: plushTex,
+    emissive: 0xffffff,
+    emissiveMap: plushTex,
+    emissiveIntensity: 0.32,
+  });
+  const overhang = isFloor ? 0 : 0.14;
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(w + overhang * 2, lipH, depth), lipMat);
+  slab.position.set(cx, cy + h / 2 - lipH / 2, zCenter);
+  slab.receiveShadow = true;
+  slab.castShadow = !isFloor;
+  group.add(slab);
+  if (!isFloor) {
+    for (const side of [-1, 1]) {
+      const end = new THREE.Mesh(
+        new THREE.CylinderGeometry(lipH / 2, lipH / 2, depth, 10),
+        lipMat,
+      );
+      end.rotation.x = Math.PI / 2;
+      end.position.set(cx + side * (w / 2 + overhang), cy + h / 2 - lipH / 2, zCenter);
+      group.add(end);
+    }
+  }
+  return group;
 }
 
 function buildPlatformMesh(
@@ -393,8 +548,13 @@ export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SU
     // Floor segments are authored with the (thicker) FLOOR_THICKNESS; shelves
     // are thin. The color is also distinct, but thickness is the robust tell.
     const isFloor = p.h >= 28 * 2 - 1;
-    group.add(buildPlatformMesh(p, isFloor, surfaces));
-    if (!isFloor) group.add(buildShelfLip(p, surfaces));
+    if (surfaces.plush) {
+      // Painted-diorama terrain: the platform IS the art (quilt + plush lip).
+      group.add(buildPlushPlatform(p, isFloor));
+    } else {
+      group.add(buildPlatformMesh(p, isFloor, surfaces));
+      if (!isFloor) group.add(buildShelfLip(p, surfaces));
+    }
     solids.push({ x: p.x, y: p.y, w: p.w, h: p.h });
   }
 
