@@ -16,6 +16,10 @@ export class Hud {
   private winTitle: string;
   private nextLabel: string;
 
+  private fadeOverlay: HTMLDivElement;
+  /** DOM timer id for the fade-out half of flashFade; null = idle. */
+  private fadeTimer: number | null = null;
+
   constructor(
     private onReplay: () => void,
     private onNext: (() => void) | null = null,
@@ -31,6 +35,28 @@ export class Hud {
       "font-family:ui-rounded, 'SF Pro Rounded', 'Comic Sans MS', system-ui, sans-serif",
       "z-index:10",
     ].join(";");
+
+    // Storybook vignette — a zero-GPU page-frame (kept out of the render path
+    // on purpose: post-processing passes are what made the candy pass lag).
+    const vignette = document.createElement("div");
+    vignette.style.cssText = [
+      "position:absolute",
+      "inset:0",
+      "pointer-events:none",
+      "background:radial-gradient(ellipse 120% 105% at 50% 42%, transparent 62%, rgba(46, 28, 16, 0.18) 88%, rgba(40, 24, 14, 0.34) 100%)",
+    ].join(";");
+    this.root.appendChild(vignette);
+
+    // Full-screen flash/fade used for death + respawn transitions.
+    this.fadeOverlay = document.createElement("div");
+    this.fadeOverlay.style.cssText = [
+      "position:absolute",
+      "inset:0",
+      "pointer-events:none",
+      "opacity:0",
+      "background:#3a2418",
+    ].join(";");
+    this.root.appendChild(this.fadeOverlay);
 
     this.tokenLabel = document.createElement("div");
     this.tokenLabel.style.cssText = [
@@ -101,7 +127,7 @@ export class Hud {
     this.root.appendChild(this.caption);
 
     this.hint = document.createElement("div");
-    this.hint.textContent = "← → / D-pad: move · Space / Ⓐ: jump";
+    this.hint.textContent = "← → move · Space jump · X power · W/↑ climb";
     this.hint.style.cssText = [
       "position:absolute",
       "bottom:26px",
@@ -123,8 +149,36 @@ export class Hud {
   }
 
   setTokens(collected: number, total: number): void {
+    const grew = collected > 0 && this.total === total;
     this.total = total;
     this.tokenLabel.textContent = `⭐ ${collected} / ${total}`;
+    if (grew) this.pulse(this.tokenLabel);
+  }
+
+  /** Quick scale pop on a HUD chip — feedback that a number just changed. */
+  private pulse(el: HTMLElement): void {
+    el.style.transition = "none";
+    el.style.transform = "scale(1.18)";
+    // Next frame, ease back — restarting the transition even mid-pulse.
+    window.requestAnimationFrame(() => {
+      el.style.transition = "transform 0.22s ease-out";
+      el.style.transform = "scale(1)";
+    });
+  }
+
+  /**
+   * Full-screen fade pulse (0 → peak → 0) for death/respawn transitions.
+   * Color examples: "#3a2418" pit dusk, "rgba(170, 50, 50, 0.9)" hearts death.
+   */
+  flashFade(color: string, ms = 450, peak = 0.85): void {
+    this.fadeOverlay.style.background = color;
+    this.fadeOverlay.style.transition = `opacity ${ms * 0.35}ms ease-in`;
+    this.fadeOverlay.style.opacity = String(peak);
+    if (this.fadeTimer !== null) window.clearTimeout(this.fadeTimer);
+    this.fadeTimer = window.setTimeout(() => {
+      this.fadeOverlay.style.transition = `opacity ${ms * 0.65}ms ease-out`;
+      this.fadeOverlay.style.opacity = "0";
+    }, ms * 0.35);
   }
 
   setProgress(text: string): void {

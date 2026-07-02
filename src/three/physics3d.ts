@@ -62,6 +62,10 @@ export interface PlayerState {
   /** One-frame view/sfx hooks. */
   justAirJumped: boolean;
   justDashed: boolean;
+  /** Continuous: true while climb movement is applied this step (attached to a climbWall, ascending). */
+  climbing: boolean;
+  /** Continuous: true while the glide fall-speed clamp is active this step. */
+  gliding: boolean;
 }
 
 /** Runtime power context for stepPlayer. Optional — absent => no powers run.
@@ -106,6 +110,8 @@ export function createPlayerState(x: number, y: number): PlayerState {
     justSmashed: -1,
     justAirJumped: false,
     justDashed: false,
+    climbing: false,
+    gliding: false,
   };
 }
 
@@ -285,6 +291,10 @@ function stepOnce(
   const climbing =
     env.unlocked.has("wallClimb") && input.up === true && ctx.onClimbableWall;
 
+  // Continuous state flags for the render layer — recomputed every step.
+  s.climbing = climbing;
+  s.gliding = false;
+
   if (climbing) {
     s.vy = -scaled(ABILITIES.wallClimb.traversal?.climbSpeed);
   } else {
@@ -301,6 +311,7 @@ function stepOnce(
     if (active === "glide" && input.powerHeld && s.vy > 0) {
       const clamp = scaled(ABILITIES.glide.envelope!.glideFallSpeed!);
       if (s.vy > clamp) s.vy = clamp;
+      s.gliding = true;
     }
   }
 

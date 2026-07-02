@@ -524,3 +524,60 @@ describe("stepPlayer — multi-power interactions (all unlocked)", () => {
     expect(s.dashMsRemaining).toBe(0);
   });
 });
+
+describe("stepPlayer — climbing/gliding state flags (for animation poses)", () => {
+  it("climbing is true while ascending a climbWall and false after leaving the climb", () => {
+    const env: PowerEnv = {
+      unlocked: new Set<AbilityId>(["wallClimb"]),
+      climbWalls: [{ x: -50, y: FLOOR_Y - 400, w: 100, h: 400 }],
+      breakables: [],
+    };
+    let s = settleOnFloor();
+    expect(s.climbing).toBe(false);               // grounded, no up held
+    s = stepPlayer(s, { ...idle, up: true }, STEP, [FLOOR], env);
+    expect(s.climbing).toBe(true);                // climb movement applied this step
+    s = frames3(s, 10, { up: true }, [FLOOR], env);
+    expect(s.climbing).toBe(true);                // continuous while the climb holds
+    s = stepPlayer(s, idle, STEP, [FLOOR], env);  // release up → leaves the climb
+    expect(s.climbing).toBe(false);
+  });
+
+  it("climbing stays false when not overlapping a climbWall", () => {
+    const env: PowerEnv = {
+      unlocked: new Set<AbilityId>(["wallClimb"]),
+      climbWalls: [{ x: 9000, y: 0, w: 10, h: 10 }],
+      breakables: [],
+    };
+    let s = settleOnFloor();
+    s = frames3(s, 5, { up: true }, [FLOOR], env);
+    expect(s.climbing).toBe(false);
+  });
+
+  it("gliding is true while the clamp is active and false on release", () => {
+    const env: PowerEnv = { unlocked: new Set<AbilityId>(["glide"]), climbWalls: [], breakables: [] };
+    let s = createPlayerState(0, FLOOR_Y - 600);  // high up, no floor → falling
+    s = frames3(s, 30, {}, [], env);              // free-fall, power not held
+    expect(s.vy).toBeGreaterThan(0);
+    expect(s.gliding).toBe(false);
+    s = stepPlayer(s, { ...idle, powerHeld: true }, STEP, [], env);
+    expect(s.gliding).toBe(true);                 // clamp active this step
+    s = frames3(s, 10, { powerHeld: true }, [], env);
+    expect(s.gliding).toBe(true);                 // continuous while held + descending
+    s = stepPlayer(s, idle, STEP, [], env);       // release power → clamp off
+    expect(s.gliding).toBe(false);
+  });
+
+  it("gliding is false once landed even with the power still held", () => {
+    const env: PowerEnv = { unlocked: new Set<AbilityId>(["glide"]), climbWalls: [], breakables: [] };
+    let s = createPlayerState(0, FLOOR_Y - 300);
+    let sawGlide = false;
+    for (let i = 0; i < 200 && !s.onGround; i += 1) {
+      s = stepPlayer(s, { ...idle, powerHeld: true }, STEP, [FLOOR], env);
+      if (s.gliding) sawGlide = true;
+    }
+    expect(sawGlide).toBe(true);                  // glided on the way down
+    expect(s.onGround).toBe(true);
+    s = stepPlayer(s, { ...idle, powerHeld: true }, STEP, [FLOOR], env);
+    expect(s.gliding).toBe(false);                // grounded → clamp no longer active
+  });
+});

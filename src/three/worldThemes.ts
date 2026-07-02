@@ -1,10 +1,10 @@
 import type * as THREE from "three";
 import { BACKYARD, backyardSurfaces, buildBackyardSet } from "./backyardSet";
-import { BEDROOM, buildBedroomSet } from "./bedroomSet";
+import { BEDROOM, bedroomSurfaces, buildBedroomSet } from "./bedroomSet";
 import { buildHallwaySet, HALLWAY, hallwaySurfaces } from "./hallwaySet";
 import { buildFamilyRoomSet, FAMILY_ROOM, familyRoomSurfaces } from "./familyRoomSet";
 import { buildKitchenSet, KITCHEN, kitchenSurfaces } from "./kitchenSet";
-import { DEFAULT_SURFACES, type WorldSurfaces } from "./level3d";
+import type { WorldSurfaces } from "./level3d";
 
 /**
  * Per-world theme registry — keyed by LevelCatalogEntry.areaId. Maps each
@@ -33,15 +33,13 @@ export interface WorldTheme {
   surfaces: WorldSurfaces;
 }
 
-const BEDROOM_SUN_OFFSET = { x: 7, y: 11, z: 8 };
-
 export const WORLD_THEMES: Record<string, WorldTheme> = {
   bedroom: {
     fogColor: BEDROOM.fogColor,
     fogNear: BEDROOM.fogNear,
     fogFar: BEDROOM.fogFar,
-    buildSet: (minX, maxX) => ({ ...buildBedroomSet(minX, maxX), sunOffset: BEDROOM_SUN_OFFSET }),
-    surfaces: DEFAULT_SURFACES,
+    buildSet: buildBedroomSet,
+    surfaces: bedroomSurfaces,
   },
   hallway: {
     fogColor: HALLWAY.fogColor,

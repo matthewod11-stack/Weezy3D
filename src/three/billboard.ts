@@ -24,6 +24,25 @@ export function loadFrame(url: string): Promise<Frame> {
 }
 
 /**
+ * Analytic ground-shadow blob (same construction as the player's): a flat
+ * dark ellipse lying on the floor, tucked back at negative z by the caller.
+ * The caller owns position (feet y + ~0.012, SHADOW_Z) and any fade/scale.
+ */
+export function makeShadowBlob(radius: number): THREE.Mesh {
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x4a3728,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false,
+  });
+  const blob = new THREE.Mesh(new THREE.CircleGeometry(radius, 24), material);
+  blob.rotation.x = -Math.PI / 2;
+  blob.scale.set(1, 0.78, 1);
+  blob.renderOrder = 5;
+  return blob;
+}
+
+/**
  * Counts fully transparent rows at the bottom of a sprite so a billboard can
  * plant the visible feet on the physics body's bottom. Adapted from
  * measureBottomTransparentRows (src/systems/measureSpriteFeet.ts) for plain

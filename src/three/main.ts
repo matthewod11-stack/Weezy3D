@@ -16,7 +16,8 @@ import {
 } from "./physics3d";
 import { abilitiesForArea } from "../config/gating";
 import type { AbilityId } from "../config/abilities";
-import { animateExit, animateTokens, buildLevel } from "./level3d";
+import { animateExit, animateTokens, buildLevel, TOKEN_POP_MS } from "./level3d";
+import { createFxPool } from "./fx";
 import { themeForArea } from "./worldThemes";
 import { PlayerView } from "./playerView";
 import { Hud } from "./hud";
@@ -88,6 +89,8 @@ async function boot(): Promise<void> {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
+  // PCFSoftShadowMap is deprecated in three r184 (falls back + warns every
+  // frame); soft storybook edges come from sun.shadow.radius below instead.
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -109,10 +112,17 @@ async function boot(): Promise<void> {
   const build = buildLevel(level, theme.surfaces);
   scene.add(build.group);
 
+  // Shared one-shot particle pool (landing dust, token sparkle, smash debris,
+  // stomp poofs) — ONE THREE.Points for the whole world per the perf budget.
+  const fx = createFxPool();
+  scene.add(fx.points);
+
   const worldMinX = toWorldX(level.bounds.minX);
   const worldMaxX = toWorldX(level.bounds.maxX);
   const set = theme.buildSet(worldMinX, worldMaxX);
   scene.add(set.group);
+  // Soft storybook shadow edges (the r184-sanctioned lever — see renderer note).
+  set.sun.shadow.radius = 4;
 
   const playerView = await PlayerView.load();
   scene.add(playerView.group);
@@ -174,9 +184,12 @@ async function boot(): Promise<void> {
     segmentIndex = -1;
     for (const token of build.tokens) {
       token.collected = false;
+      token.popMsRemaining = 0;
       token.mesh.visible = true;
       token.mesh.scale.setScalar(1);
+      (((token.mesh as THREE.Mesh).material) as THREE.MeshLambertMaterial).opacity = 1;
     }
+    fx.reset();
     hud.setTokens(0, level.tokens.length);
     enemies = level.enemies.map(createEnemyState);
     hearts = 3;
@@ -198,9 +211,19 @@ async function boot(): Promise<void> {
 
   // ── Camera follow (ported look-ahead feel) ──────────────────────────────
   const lookAheadUnits = toWorldLen(CAMERA_LOOK_AHEAD);
-  const camDist = 10.5;
+  let camDist = 10.5; // eases toward 8.5 on win — a storybook push-in
   let camX = toWorldX(startSpawn.x);
   let camY = 2.8;
+  // Event channel: decaying micro-shake (smash, damage) + dash FOV kick.
+  // Never touches camX/camY, so the follow ease is untouched. Deterministic
+  // (sine-driven, clocked by dtMs) per the no-Math.random rule.
+  let shakeMs = 0;
+  let shakeAmp = 0;
+  let shakeClock = 0;
+  function triggerShake(amp: number, ms: number): void {
+    shakeAmp = Math.max(shakeAmp, amp);
+    shakeMs = Math.max(shakeMs, ms);
+  }
 
   function updateCamera(dtMs: number): void {
     const target = toWorldX(player.x) + lookAheadUnits * player.facing * 0.6;
@@ -209,10 +232,30 @@ async function boot(): Promise<void> {
     const ease = 1 - Math.exp(-dtMs / 220);
     camX += (clamped - camX) * ease;
 
-    const targetY = 2.8 + Math.max(0, toWorldY(player.y)) * 0.35;
+    // Follow Eloise DOWN into pits (a child loses the character otherwise);
+    // -7 keeps the frame from chasing her past the kill plane.
+    const targetY = 2.8 + Math.max(-7, toWorldY(player.y)) * 0.35;
     camY += (targetY - camY) * ease * 0.8;
 
+    // Dash FOV kick: a whisper of speed-feel, snaps back when the dash ends.
+    const targetFov = player.dashMsRemaining > 0 ? 44.5 : 42;
+    if (Math.abs(camera.fov - targetFov) > 0.02) {
+      camera.fov += (targetFov - camera.fov) * (1 - Math.exp(-dtMs / 90));
+      camera.updateProjectionMatrix();
+    }
+    // Win push-in.
+    const targetDist = won ? 8.5 : 10.5;
+    camDist += (targetDist - camDist) * (1 - Math.exp(-dtMs / 450));
+
     camera.position.set(camX, camY, camDist);
+    if (shakeMs > 0) {
+      shakeMs -= dtMs;
+      shakeClock += dtMs;
+      const falloff = Math.max(0, shakeMs) / 180;
+      camera.position.x += Math.sin(shakeClock * 0.09) * shakeAmp * falloff;
+      camera.position.y += Math.cos(shakeClock * 0.117) * shakeAmp * falloff * 0.7;
+      if (shakeMs <= 0) shakeAmp = 0;
+    }
     camera.lookAt(camX, camY * 0.62 + 0.9, 0);
 
     // Keep the shadow camera centered on the action.
@@ -230,7 +273,17 @@ async function boot(): Promise<void> {
       if (token.collected) continue;
       if (touchesCircle(player, token.x, token.y, TOKEN_PICKUP_RADIUS)) {
         token.collected = true;
-        token.mesh.visible = false;
+        token.popMsRemaining = TOKEN_POP_MS; // pop tween runs in animateTokens
+        fx.spawnBurst(toWorldX(token.x), toWorldY(token.y), {
+          count: 12,
+          color: 0xf6c945,
+          color2: 0xfff2c0,
+          speed: 1.6,
+          upBias: 1.2,
+          gravity: 2.5,
+          lifeMs: 450,
+          size: 0.08,
+        });
         collected += 1;
         hud.setTokens(collected, level.tokens.length);
       }
@@ -254,6 +307,7 @@ async function boot(): Promise<void> {
       const checkpoint = segmentAt(segments, player.x).spawn;
       player = createPlayerState(checkpoint.x, checkpoint.y);
       invincibleMs = 0; // pit respawn clears damage grace (matches hearts-death path)
+      hud.flashFade("#2c1c10", 520); // dusk fade — softens the teleport cut
     }
   }
 
@@ -277,12 +331,14 @@ async function boot(): Promise<void> {
       hearts -= 1;
       invincibleMs = PHYSICS.INVINCIBILITY_MS;
       hud.setHearts(hearts, maxHearts);
+      triggerShake(0.06, 120);
       if (hearts <= 0) {
         const cp = segmentAt(segments, player.x).spawn;
         player = createPlayerState(cp.x, cp.y);
         hearts = maxHearts;
         invincibleMs = 0;
         hud.setHearts(hearts, maxHearts);
+        hud.flashFade("rgba(150, 45, 45, 0.9)", 560);
       }
     }
     if (invincibleMs > 0) invincibleMs -= dtMs;
@@ -300,6 +356,16 @@ async function boot(): Promise<void> {
       const name = companionSpawn.type[0]!.toUpperCase() + companionSpawn.type.slice(1);
       hud.showCaption(`You met ${name}!`);
       companionView?.setCollected();
+      fx.spawnBurst(toWorldX(companionSpawn.x), toWorldY(companionSpawn.y), {
+        count: 14,
+        color: 0xff9bb0,
+        color2: 0xfff2c0,
+        speed: 1.8,
+        upBias: 1.4,
+        gravity: 2.0,
+        lifeMs: 550,
+        size: 0.1,
+      });
     }
   }
 
@@ -365,6 +431,10 @@ async function boot(): Promise<void> {
     /** Power introspection / grant — drives in-browser power verification. */
     unlockedAbilities: () => [...unlocked],
     grantAbility: (id: AbilityId) => unlocked.add(id),
+    /** Live particle count — drives fx verification + the scene census. */
+    fxLive: () => fx.liveCount(),
+    /** Manually kick the camera shake — verification without taking damage. */
+    shake: (amp = 0.12, ms = 180) => triggerShake(amp, ms),
   };
 
   // ── Main loop ───────────────────────────────────────────────────────────
@@ -422,7 +492,56 @@ async function boot(): Promise<void> {
         // The sim already nulled breakables[justSmashed]; hide its mesh so the
         // barricade visually disappears. resetLevel re-shows all (gotcha #12).
         const br = build.breakables[player.justSmashed];
-        if (br) br.mesh.visible = false;
+        if (br) {
+          br.mesh.visible = false;
+          fx.spawnBurst(br.mesh.position.x, br.mesh.position.y, {
+            count: 18,
+            color: 0xb07a3c,
+            color2: 0x6e4a20,
+            speed: 3.2,
+            upBias: 1.6,
+            gravity: 7,
+            lifeMs: 650,
+            size: 0.11,
+          });
+          triggerShake(0.12, 180);
+        }
+      }
+      // Movement juice — consume the sim's one-frame flags at Eloise's feet.
+      if (player.justLanded) {
+        fx.spawnBurst(toWorldX(player.x), toWorldY(player.y), {
+          count: 7,
+          color: 0xcbb59a,
+          speed: 1.1,
+          upBias: 0.35,
+          gravity: 2.2,
+          lifeMs: 380,
+          size: 0.07,
+          spread: 0.24,
+        });
+      }
+      if (player.justAirJumped) {
+        fx.spawnBurst(toWorldX(player.x), toWorldY(player.y), {
+          count: 10,
+          color: 0xfff2c0,
+          color2: 0x9fd8ff,
+          speed: 2.0,
+          upBias: 0.1,
+          gravity: 1.2,
+          lifeMs: 320,
+          size: 0.08,
+        });
+      }
+      if (player.justDashed) {
+        fx.spawnBurst(toWorldX(player.x) - player.facing * 0.3, toWorldY(player.y) + 0.4, {
+          count: 8,
+          color: 0xffffff,
+          speed: 1.4,
+          upBias: 0.3,
+          gravity: 0.8,
+          lifeMs: 260,
+          size: 0.07,
+        });
       }
       collectTokens();
       checkExit();
@@ -433,13 +552,32 @@ async function boot(): Promise<void> {
     }
 
     playerView.update(player, dtMs, build.solids);
-    enemiesView.update(enemies, dtMs);
+    enemiesView.update(enemies, dtMs, player.x);
+    // Defeated enemies poof — the view runs the squash, we spawn the dust.
+    for (const d of enemiesView.drainDefeatEvents()) {
+      fx.spawnBurst(toWorldX(d.x), toWorldY(d.y), {
+        count: 10,
+        color: 0xdccbb8,
+        speed: 1.8,
+        upBias: 0.8,
+        gravity: 2.0,
+        lifeMs: 420,
+        size: 0.09,
+      });
+    }
     companionView?.update(elapsed);
-    // Invincibility blink — flash the player billboard while invulnerable.
-    // Force-visible once won: invincibleMs freezes while the sim is paused.
-    playerView.group.visible = won || invincibleMs <= 0 || Math.floor(elapsed / 100) % 2 === 0;
-    animateTokens(build.tokens, elapsed);
+    if (companionMet && companionView) {
+      companionView.followUpdate({ x: player.x, y: player.y, facing: player.facing }, dtMs);
+    }
+    // Invincibility — sprite-only opacity pulse + hurt tint (the old whole-group
+    // blink flickered the shadow blob too). Won forces the normal look.
+    playerView.setInvincible(
+      !won && invincibleMs > 0,
+      PHYSICS.INVINCIBILITY_MS - Math.max(0, invincibleMs),
+    );
+    animateTokens(build.tokens, elapsed, dtMs);
     animateExit(build, elapsed);
+    fx.update(dtMs);
     set.update?.(dtMs, elapsed);
     updateCamera(dtMs);
 

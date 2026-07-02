@@ -18,7 +18,12 @@ export interface TokenEntity {
   mesh: THREE.Object3D;
   /** Phase offset so a row of tokens bobs as a wave, not in lockstep. */
   phase: number;
+  /** Collect "pop" tween: counts down from POP_MS; 0 = hidden/idle. */
+  popMsRemaining: number;
 }
+
+/** Duration of the token collect pop (scale-up + fade, then hide). */
+export const TOKEN_POP_MS = 180;
 
 export interface LevelBuild {
   group: THREE.Group;
@@ -149,9 +154,89 @@ function buildShelfLip(p: LevelData["platforms"][number], surfaces: WorldSurface
  * occluded by their front half.
  */
 const CLIMB_Z = 0.05;
+
+/** Deterministic canvas texture helper — seeded LCG, cached per key. */
+const texCache = new Map<string, THREE.CanvasTexture>();
+function makeCanvasTexture(
+  key: string,
+  size: number,
+  draw: (ctx: CanvasRenderingContext2D, rand: () => number) => void,
+): THREE.CanvasTexture {
+  const cached = texCache.get(key);
+  if (cached) return cached;
+  const cv = document.createElement("canvas");
+  cv.width = size;
+  cv.height = size;
+  const ctx = cv.getContext("2d")!;
+  let seed = 41;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  draw(ctx, rand);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  texCache.set(key, tex);
+  return tex;
+}
+
+/** Crosshatch lattice + leaf speckle — sells "climbable vines", one shared texture. */
+function latticeTexture(): THREE.Texture {
+  return makeCanvasTexture("lattice", 128, (ctx, rand) => {
+    ctx.fillStyle = "#6b8f5a";
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = "rgba(58, 84, 46, 0.85)";
+    ctx.lineWidth = 5;
+    for (let d = -128; d <= 256; d += 32) {
+      ctx.beginPath();
+      ctx.moveTo(d, 0);
+      ctx.lineTo(d + 128, 128);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(d + 128, 0);
+      ctx.lineTo(d, 128);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 40; i += 1) {
+      const x = rand() * 128;
+      const y = rand() * 128;
+      ctx.fillStyle = rand() > 0.5 ? "rgba(140, 180, 110, 0.55)" : "rgba(90, 120, 70, 0.6)";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 3.5, 2.2, rand() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+/** Horizontal plank stripes + grain flecks — the smashable crate read. */
+function plankTexture(): THREE.Texture {
+  return makeCanvasTexture("planks", 128, (ctx, rand) => {
+    ctx.fillStyle = "#b07a3c";
+    ctx.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 128; y += 26) {
+      ctx.fillStyle = "rgba(66, 42, 18, 0.55)";
+      ctx.fillRect(0, y, 128, 3);
+      ctx.fillStyle = `rgba(255, 220, 170, ${0.05 + rand() * 0.06})`;
+      ctx.fillRect(0, y + 3, 128, 10);
+    }
+    ctx.strokeStyle = "rgba(80, 50, 22, 0.35)";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 22; i += 1) {
+      const x = rand() * 128;
+      const y = rand() * 128;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 8 + rand() * 18, y + (rand() - 0.5) * 4);
+      ctx.stroke();
+    }
+  });
+}
+
 function buildClimbWall(w: { x: number; y: number; w: number; h: number }): THREE.Mesh {
   const geo = new THREE.BoxGeometry(toWorldLen(w.w), toWorldLen(w.h), 0.4);
-  const mat = new THREE.MeshLambertMaterial({ color: 0x6b8f5a }); // vine/lattice green
+  const mat = new THREE.MeshLambertMaterial({ map: latticeTexture() });
   const mesh = new THREE.Mesh(geo, mat);
   const c = rectCenterWorld(w);
   // front face at +0.05 (behind player +0.06); box depth 0.4 extends back to -0.35
@@ -162,7 +247,7 @@ function buildClimbWall(w: { x: number; y: number; w: number; h: number }): THRE
 
 function buildBreakable(b: { x: number; y: number; w: number; h: number }): THREE.Mesh {
   const geo = new THREE.BoxGeometry(toWorldLen(b.w), toWorldLen(b.h), 1.4);
-  const mat = new THREE.MeshLambertMaterial({ color: 0xb07a3c }); // crate/barricade
+  const mat = new THREE.MeshLambertMaterial({ map: plankTexture() });
   const mesh = new THREE.Mesh(geo, mat);
   const c = rectCenterWorld(b);
   mesh.position.set(c.cx, c.cy, -0.7); // solid, extends backward from ~0
@@ -171,23 +256,35 @@ function buildBreakable(b: { x: number; y: number; w: number; h: number }): THRE
   return mesh;
 }
 
+/** One star geometry shared by every token (they only differ by transform). */
+let tokenGeometry: THREE.ExtrudeGeometry | null = null;
+function getTokenGeometry(): THREE.ExtrudeGeometry {
+  if (!tokenGeometry) {
+    tokenGeometry = new THREE.ExtrudeGeometry(starShape(0.26, 0.115), {
+      depth: 0.09,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 2,
+    });
+    tokenGeometry.center();
+  }
+  return tokenGeometry;
+}
+
 function buildToken(t: { x: number; y: number }, index: number): TokenEntity {
-  const geo = new THREE.ExtrudeGeometry(starShape(0.26, 0.115), {
-    depth: 0.09,
-    bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.02,
-    bevelSegments: 2,
-  });
-  geo.center();
+  // Material stays per-token: the collect pop fades opacity individually.
   const mat = new THREE.MeshLambertMaterial({
     color: 0xf6c945,
     emissive: 0x8a6210,
+    transparent: true,
   });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(getTokenGeometry(), mat);
   mesh.position.set(toWorldX(t.x), toWorldY(t.y), TOKEN_Z);
-  mesh.castShadow = true;
-  return { x: t.x, y: t.y, collected: false, mesh, phase: index * 0.7 };
+  // Tokens are tiny clutter (§5.6 9c): 125 of them casting was a silent
+  // shadow-pass tax; the spin/bob + sparkle carry their read instead.
+  mesh.castShadow = false;
+  return { x: t.x, y: t.y, collected: false, mesh, phase: index * 0.7, popMsRemaining: 0 };
 }
 
 /** A glowing storybook door — the level exit. */
@@ -227,7 +324,28 @@ function buildExit(exit: LevelData["exit"]): { group: THREE.Group; glow: THREE.P
   const glow = new THREE.PointLight(0xffc46a, 7, 7, 1.6);
   glow.position.set(cx, cy, 1.2);
 
-  group.add(left, right, top, glowPane, star, glow);
+  // Fake bloom: one additive radial-gradient sprite behind the door. Delivers
+  // the "glowing doorway" halo without an EffectComposer pass (perf budget).
+  const halo = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: makeCanvasTexture("radial-glow", 64, (ctx) => {
+        const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+        g.addColorStop(0, "rgba(255, 224, 160, 0.9)");
+        g.addColorStop(0.45, "rgba(255, 200, 120, 0.35)");
+        g.addColorStop(1, "rgba(255, 190, 100, 0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 64, 64);
+      }),
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+    }),
+  );
+  halo.scale.setScalar(Math.max(w, h) * 2.4);
+  halo.position.set(cx, cy, -0.12);
+  halo.name = "exit-halo";
+
+  group.add(left, right, top, glowPane, star, glow, halo);
   // Diorama convention: pull the door back so its front face sits at z = 0
   // and Eloise (z > 0) walks in front of the frame, never behind it.
   group.position.z = -0.25;
@@ -279,11 +397,25 @@ export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SU
   };
 }
 
-/** Per-frame token animation: spin + wave bob; pop handled by the collector. */
-export function animateTokens(tokens: TokenEntity[], elapsedMs: number): void {
+/** Per-frame token animation: spin + wave bob, plus the collect pop tween. */
+export function animateTokens(tokens: TokenEntity[], elapsedMs: number, dtMs = 0): void {
   const t = elapsedMs / 1000;
   for (const token of tokens) {
-    if (token.collected) continue;
+    if (token.collected) {
+      // Collect pop: scale up + fade out over TOKEN_POP_MS, then hide.
+      if (token.popMsRemaining > 0 && token.mesh.visible) {
+        token.popMsRemaining = Math.max(0, token.popMsRemaining - dtMs);
+        const p = 1 - token.popMsRemaining / TOKEN_POP_MS; // 0 → 1
+        token.mesh.scale.setScalar(1 + p * 0.6);
+        const mat = (token.mesh as THREE.Mesh).material as THREE.MeshLambertMaterial;
+        mat.opacity = 1 - p;
+        if (token.popMsRemaining <= 0) {
+          token.mesh.visible = false;
+          mat.opacity = 1;
+        }
+      }
+      continue;
+    }
     token.mesh.rotation.y = t * 2.2 + token.phase;
     token.mesh.position.y = toWorldY(token.y) + Math.sin(t * 2.4 + token.phase) * 0.07;
   }
@@ -301,5 +433,11 @@ export function animateExit(build: LevelBuild, elapsedMs: number): void {
   const pane = build.exitGroup.getObjectByName("exit-glow-pane") as THREE.Mesh | undefined;
   if (pane) {
     (pane.material as THREE.MeshBasicMaterial).opacity = 0.78 + pulse * 0.18;
+  }
+  const halo = build.exitGroup.getObjectByName("exit-halo") as THREE.Sprite | undefined;
+  if (halo) {
+    const base = halo.userData.baseScale ?? (halo.userData.baseScale = halo.scale.x);
+    halo.scale.setScalar(base * (0.92 + pulse * 0.16));
+    halo.material.opacity = 0.7 + pulse * 0.3;
   }
 }
