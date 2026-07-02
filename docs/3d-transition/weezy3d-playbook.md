@@ -171,6 +171,20 @@ Pipeline: `scripts/gen-texture.mjs` (Gemini image API, key auto-read from `~/.zs
 8. **Preview-panel viewport can collapse to 2px wide** (collapsed IDE panel) — screenshots come back as slivers and the renderer inits tiny. Fix: `preview_resize` with explicit width/height (1440×810), not the desktop preset ("native" = the collapsed size).
 9. **Perf budget for cadence dressing** (user-reported chop, 2026-06-11; fixed same day). The frame cost is lights × pixels + draw calls + shadow casters — NOT texture file size (JPEGs decode once at load). Hard rules: **(a) repeated landmarks carry NO lights** — 13 porthole PointLights → 16 total = unplayable; budget ≤ ~6 lights/world (ambient + sun + fill + 2-3 lamps). buildPorthole is light-free by design + pinned by test. **(b) Particle fields = ONE THREE.Points** with vertex-color twinkle (additive blending, dim=faded), never N Sprites (N draw calls) — pinned by test. **(c) Tiny clutter (blocks, crayons, books) never casts shadows; huge far planes (wallpaper) never receive them.** Diagnose with the scene-census eval (count lights/meshes/sprites/casters via `__weezy3d.scene.traverse`) before guessing.
 
+## 5.7 Visual-immersion cookbook (2026-07-01, session 8 — bedroom = the proof; apply per world after user approval)
+
+Pass 1 shipped on World 1 (`feat/visual-immersion-l1`). The juice layer (fx pool, player/enemy/companion animation, camera events, HUD polish, token pop, door halo) is **global — already live in all 5 worlds.** What each remaining world needs is only its SET recipe, cloned from `bedroomSet.ts`:
+
+1. **Cadence dressing** (never fixed fractions): seeded interval loops over [minX, maxX] — wall item every ~55–65 units (alternate two species so it doesn't metronome), mid-ground landmark every ~35–45 rotating 3–4 builders from the world's scenery-library hero list, clutter every ~9–14, foreground (+1.9) crumb every ~25–30. Jitter everything off the LCG.
+2. **One visible hero light** with a breathing/flicker `update` hook (bedroom lamp, kitchen stove ✓, family-room fireplace ✓ — hallway needs an end-window glow treatment, backyard a sun-dapple equivalent). REPURPOSE existing lights; budget ≤6/world *including the exit-door glow* (bedroom census: exactly 6).
+3. **Light-shaft planes instead of light sources** at windows: slanted PlaneGeometry, MeshBasic, additive, opacity ~0.10, `depthWrite:false`, `fog:false` — zero lights.
+4. **ONE dust-mote/ambient THREE.Points** per world (≤200 verts, seeded, drifting via `update`; kitchen = heat shimmer above the stove, backyard = pollen).
+5. **Compliance sweep while in the file:** strip `castShadow` from anything small (per-mesh rule ~<1.5 units), wallpaper/far planes `receiveShadow=false`. (Hallway/kitchen/familyRoom/backyard sets still violate this — cheapest perf win available.)
+6. **World-specific `WorldSurfaces`** if the floor still reads generic.
+7. **Verify numerically** (`__weezy3d`): light count ≤6, casters delta, `fxLive()` after a jump-land = landing-dust count, `shake()` fires, screenshot tour via `jumpToSegment(i)` + `snapCamera()`.
+
+Paid-for notes from pass 1: `PCFSoftShadowMap` is **deprecated in three r184** (falls back + warns per frame) — soft edges come from `set.sun.shadow.radius = 4` in main.ts; token/star meshes must NOT cast (125 casters saved); the vignette is a CSS overlay in `hud.ts`, not a post pass; the fx pool parks dead slots at y=-9999 AND black (additive-invisible). Queued behind user approval: painted far-plane backgrounds experiment (24 orphaned 1024px paintings on disk), NanoBanana batch for dash/glide/climb/hurt/celebrate Eloise frames (anchor pipeline intact), WebAudio synth blips, diegetic win beat (door swings open), in-page world hand-off fade.
+
 ## 6. Working agreements for future sessions
 
 - **Verify in-browser before claiming done** — the preview tools + `__weezy3d` make every claim checkable. Screenshots are the deliverable for visual work.

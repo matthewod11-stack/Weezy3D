@@ -141,6 +141,8 @@ All **5 non-boss worlds play as continuous Three.js runs** — `worldStitch` cha
 
 Abilities are **3D-local** (seeded per run by `abilitiesForArea(world.areaId)`) — NOT `GameState`. Companion-collect grants real abilities (`unlocked.add(COMPANIONS[type].grants)`) alongside `heartBonus`. New debug handles: `__weezy3d.unlockedAbilities()`, `grantAbility(id)`. 416 Vitest tests + tsc clean + browser-verified. Spec: `docs/superpowers/specs/2026-06-15-3d-powers-design.md`.
 
+**Visual immersion pass 1 (2026-07-01, session 8 — branch `feat/visual-immersion-l1`):** global juice layer (`src/three/fx.ts` particle pool, player squash-and-stretch + dash/glide/climb poses, enemy stomp squash+poof, companion follow, camera shake/FOV-kick/win-dolly/pit-follow, death fades, CSS vignette, token pop + door halo) + **Bedroom set rework** (cadence dressing, breathing hero lamp, light shafts, dust motes, crib/toy-chest/teddy landmarks) as the World-1 proof point. Perf-budget compliant (6 lights, casters 270→106, 2 Points fields). 464 tests. **Replicate to worlds 2–5 via playbook §5.7 cookbook after user approval.** Plan: `docs/superpowers/plans/2026-07-01-visual-immersion-level1.md`.
+
 ### Level design (authored — feeds the 3D game)
 
 All 6 worlds are authored via the sketch→encode pipeline (`design/levelSketches.ts` → `levelCatalog`), **B-A-A-C** ordering, 5 slots × A/B/C each, proven solvable by the reachability lint + per-world integration tests (`src/levels/*.integration.test.ts`). This design is the durable source of truth; the 3D game renders it.

@@ -2,6 +2,23 @@
 
 ---
 
+## Session: 2026-07-01 (Weezy3D session 8 — VISUAL IMMERSION PASS 1, ultracode; L1 proof ✅)
+
+**Deep 7-agent visual/animation assessment (116 findings) → plan → the whole juice-and-dressing layer landed on branch `feat/visual-immersion-l1`** (commit 3b8a527). Bedroom is the proof point; the character/camera/FX work is global. Full plan + assessment digest: `docs/superpowers/plans/2026-07-01-visual-immersion-level1.md`; per-world replication recipe: playbook **§5.7 cookbook**.
+
+### What shipped
+
+- **`src/three/fx.ts` (new)** — pooled one-shot particle system (ONE THREE.Points, 256 verts, seeded, deterministic). Wired: landing dust, double-jump ring, dash kick, token sparkle, charge-smash debris + camera shake, enemy stomp poofs, companion celebration.
+- **Player animation** (`playerView.ts`) — squash-and-stretch consuming the sim's previously-ignored `justLanded/justJumped/justAirJumped` flags; dash tilt, glide sway, climb lean (new additive `climbing`/`gliding` PlayerState flags — feel tests unchanged), idle breathing, turn-flip tween, sprite-only hurt pulse (shadow blob no longer blinks).
+- **Enemies/companions** — stomp = 160ms pancake + poof (was instant vanish); shadow blobs under everyone; dustbunny/spider attack-frame proximity telegraphs; ant/dustMite micro-wiggle; **collected companion now trails Eloise** with walk frames.
+- **Bedroom set rework** — cadence dressing (windows+curtains+additive light shafts, crib+rotating mobile / toy chest / teddy landmark rotation, foreground crumbs), visible breathing **hero lamp** + rag rug, ONE dust-mote Points field, bedroom-specific floor. Lights 7→5 (6 with door glow — at budget), set casters 53→19.
+- **Camera & presentation** — micro-shake channel, dash FOV kick, win dolly-in, follows Eloise down into pits (critic finding: kids lost sight of her); death/respawn fades; CSS vignette; token-count pulse; controls hint teaches X-power/climb; token collect pop; exit-door glow halo; lattice/plank skins on climb walls/breakables.
+- **Perf discipline** — tokens no longer cast shadows (125 casters saved); world census: casters 270→106, `PCFSoftShadowMap` deprecation dodged via `sun.shadow.radius`.
+
+**Gate:** 464 tests green (432→464), tsc clean, build passes, browser-verified (segment screenshot tour + numeric probes). **Next (needs user approval):** apply the §5.7 cookbook to Hallway/Kitchen/FamilyRoom/Backyard; queued experiments: painted far-plane backgrounds, NanoBanana pose batch (dash/glide/climb/hurt), WebAudio blips, diegetic win beat.
+
+---
+
 ## Session: 2026-06-15 (Weezy3D session 7 — 3D TRAVERSAL POWERS; §5.4 ✅)
 
 **All five traversal powers ported to the Three.js runtime via subagent-driven TDD** — each power went through spec + code-quality review. Every power-gated world (Hallway, Kitchen, Family Room, Backyard) is now playable end-to-end in 3D. Previously only Bedroom (gate-free) was.
