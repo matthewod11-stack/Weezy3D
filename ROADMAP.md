@@ -3,7 +3,7 @@
 > ## ⚠️ HISTORICAL (2D) — superseded 2026-06-15
 > This is the original **2D Phaser** V1 roadmap. The 2D game was extracted to a separate repo on 2026-06-15; **Weezy3D is now the Three.js 3D game** (`src/three/`, `/3d.html`). Phases 0–7 below were all built in 2D and are kept as design/history — the 6-world journey, companions, enemies, gating, boss, and cutscene designs they describe still drive the 3D game via the shared sketch→encode level pipeline.
 >
-> **The live roadmap for the 3D game is `docs/3d-transition/weezy3d-playbook.md` §5 (next-port recipes).** Current 3D state: all 5 non-boss worlds playable as continuous runs with enemies + companions + keyboard/gamepad; **next up = port the power system (§5.4)**, then boss + cutscenes to 3D scenes (logic already kept in `src/logic/`).
+> **The live roadmap for the 3D game is `docs/3d-transition/weezy3d-playbook.md` §5 (next-port recipes).** Current 3D state: all 5 non-boss worlds playable end-to-end with enemies + companions + all 5 traversal powers (§5.4 ✅) + keyboard/gamepad. **Active work (2026-07): visual immersion (§5.7)** — juice/animation layer shipped world-wide, Bedroom set reworked, and a painted-diorama art direction (`?look=painted`) in progress after two playtest rounds. Still open: boss + cutscenes to 3D scenes (logic already kept in `src/logic/`).
 
 > **V1 Goal:** Eloise can play through a complete journey from bedroom to T-Rex boss, collecting 5 companions, in a seamless pixel-art experience
 > **Tech Stack (original):** Phaser 3, TypeScript, Vite — *now Three.js + TypeScript + Vite*

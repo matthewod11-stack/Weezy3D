@@ -40,7 +40,8 @@ Pixel platformer for kids (4–8). Eloise journeys from bedroom through six conn
 src/
   three/        THE GAME (Three.js, no Phaser). main.ts, physics3d.ts,
                 input.ts, gamepad.ts, worldStitch.ts, enemy3d.ts, level3d.ts,
-                playerView/enemyView/companionView, hud.ts, *Set.ts themes
+                playerView/enemyView/companionView, hud.ts, *Set.ts themes,
+                fx.ts (juice particle pool), paintedBackdrop.ts (?look=painted)
   logic/        Phaser-free reusable logic (kept from the 2D game): airJump,
                 powerDispatch, bossFight, cutscene, menuSelection, aimVelocity,
                 breakableDetect, climbDetect — substrate for 3D feature ports
@@ -141,7 +142,9 @@ All **5 non-boss worlds play as continuous Three.js runs** — `worldStitch` cha
 
 Abilities are **3D-local** (seeded per run by `abilitiesForArea(world.areaId)`) — NOT `GameState`. Companion-collect grants real abilities (`unlocked.add(COMPANIONS[type].grants)`) alongside `heartBonus`. New debug handles: `__weezy3d.unlockedAbilities()`, `grantAbility(id)`. 416 Vitest tests + tsc clean + browser-verified. Spec: `docs/superpowers/specs/2026-06-15-3d-powers-design.md`.
 
-**Visual immersion pass 1 (2026-07-01, session 8 — branch `feat/visual-immersion-l1`):** global juice layer (`src/three/fx.ts` particle pool, player squash-and-stretch + dash/glide/climb poses, enemy stomp squash+poof, companion follow, camera shake/FOV-kick/win-dolly/pit-follow, death fades, CSS vignette, token pop + door halo) + **Bedroom set rework** (cadence dressing, breathing hero lamp, light shafts, dust motes, crib/toy-chest/teddy landmarks) as the World-1 proof point. Perf-budget compliant (6 lights, casters 270→106, 2 Points fields). 464 tests. **Replicate to worlds 2–5 via playbook §5.7 cookbook after user approval.** Plan: `docs/superpowers/plans/2026-07-01-visual-immersion-level1.md`.
+**Visual immersion pass 1 (2026-07-01, session 8 — branch `feat/visual-immersion-l1`):** global juice layer (`src/three/fx.ts` particle pool, player squash-and-stretch + dash/glide/climb poses, enemy stomp squash+poof, companion follow, camera shake/FOV-kick/win-dolly/pit-follow, death fades, CSS vignette, token pop + door halo) + **Bedroom set rework** (cadence dressing, breathing hero lamp, light shafts, dust motes, crib/toy-chest/teddy landmarks) as the World-1 proof point. Perf-budget compliant (6 lights, casters 270→106, 2 Points fields). **Replicate to worlds 2–5 via playbook §5.7 cookbook after user approval.** Plan: `docs/superpowers/plans/2026-07-01-visual-immersion-level1.md`.
+
+**Painted-diorama art direction (2026-07-02, same branch, `?look=painted`):** after user verdict that the procedural look was "blah, not majestic," diagnosed as art direction (not an engine ceiling — Three.js can render this). Two playtest rounds shipped: (1) painted backdrop planes per segment + continuous edge-fading wallpaper (`src/three/paintedBackdrop.ts`), pit-aware dressing, bloom retune, dark under-floor for pit gaps (commit 79c3245); (2) after the user shared Mario Wonder references — diagnosis: Wonder's beauty is in the *terrain*, not the background — Wonder-style **quilted-blanket platforms with a plush carpet lip** replaced flat placeholder boxes (`WorldSurfaces.plush`, `buildPlushPlatform` in `level3d.ts`, commit 9df97fb). 464 tests, tsc clean. **Awaiting user verdict on the quilt terrain** before deciding: make painted the default, or extend the recipe (parallax cutout props, ambient butterflies) further before rolling to other worlds.
 
 ### Level design (authored — feeds the 3D game)
 
