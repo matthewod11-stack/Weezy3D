@@ -11,6 +11,16 @@ import { renderCombinedSvg } from "./sketchRenderer";
 /** Variant ordering applied to every slot when content exists. */
 const SEGMENT_ORDER = ["B", "A", "A", "C"];
 
+/**
+ * Per-area override (2026-07-08 playtest: Bedroom's B-A-A-C chain felt too
+ * long — see src/levels/bedroomLevels.ts). Keyed by Area.id; areas without an
+ * entry keep the default SEGMENT_ORDER. Add an entry here as each remaining
+ * world's *Levels.ts file adopts the shorter chain.
+ */
+const AREA_SEGMENT_ORDER: Record<number, string[]> = {
+  1: ["B", "C"], // Bedroom
+};
+
 /** Escape author-edited strings before inserting into HTML. */
 function escapeHtml(s: string): string {
   return s
@@ -82,7 +92,8 @@ function renderArea(area: Area): string {
       if (slot.options.length === 0) {
         return renderStubSlot(slot);
       }
-      const combined = combineSlot({ id: slot.id, name: slot.name, intent: slot.intent, options: slot.options }, SEGMENT_ORDER);
+      const order = AREA_SEGMENT_ORDER[area.id] ?? SEGMENT_ORDER;
+      const combined = combineSlot({ id: slot.id, name: slot.name, intent: slot.intent, options: slot.options }, order);
       return renderDraftedSlot(combined);
     })
     .join("");
