@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { LevelData } from "../types/level";
 import { rectCenterWorld, toWorldLen, toWorldX, toWorldY } from "./coords";
 import type { PhysRect } from "./physics3d";
+import { rollingHeights } from "./rollingProfile";
 
 /**
  * Builds the gameplay geometry for a level from the same LevelData the 2D
@@ -254,6 +255,10 @@ function buildPlushPlatform(
   slab.receiveShadow = true;
   slab.castShadow = !isFloor;
   group.add(slab);
+  if (isFloor) {
+    const ridge = buildRollingRidge(p, cx, cy, w, h);
+    if (ridge) group.add(ridge);
+  }
   if (!isFloor) {
     for (const side of [-1, 1]) {
       const end = new THREE.Mesh(
@@ -266,6 +271,55 @@ function buildPlushPlatform(
     }
   }
   return group;
+}
+
+/**
+ * Wonder's ground rolls; ours were rectangles. A visual-only plush ridge
+ * along a floor's top — seeded hummocks (rollingProfile.ts) extruded to a
+ * z-slab of [-1.6, -0.5]: BEHIND the shadow blob (-0.3) and the play plane,
+ * so Eloise, her feet-planting, and physics are untouched. Returns null when
+ * the floor is too narrow to roll.
+ */
+function buildRollingRidge(
+  p: LevelData["platforms"][number],
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+): THREE.Mesh | null {
+  // Seed from level-space geometry so stitched worlds stay deterministic.
+  const heights = rollingHeights(w, p.x * 31 + p.w * 7);
+  if (Math.max(...heights) < 0.05) return null;
+
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  for (let i = 0; i < heights.length; i += 1) {
+    shape.lineTo((i / (heights.length - 1)) * w, heights[i]!);
+  }
+  shape.lineTo(w, 0);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.1, bevelEnabled: false });
+
+  const tex = plushTexture().clone();
+  tex.needsUpdate = true;
+  // ExtrudeGeometry UVs are raw shape coords (world units); match the lip's
+  // one-tile-per-2.2-units density.
+  tex.repeat.set(1 / 2.2, 1 / 2.2);
+  const mat = new THREE.MeshLambertMaterial({
+    map: tex,
+    // A touch rosier than the lip so the rolling silhouette reads as its own
+    // layer behind the walk line rather than a lumpy lip.
+    color: 0xf3c3d8,
+    emissive: 0xffffff,
+    emissiveMap: tex,
+    emissiveIntensity: 0.3,
+  });
+  const ridge = new THREE.Mesh(geo, mat);
+  // Shape x=0 at platform left, y=0 at the physics floor top; extrude runs +z.
+  ridge.position.set(cx - w / 2, cy + h / 2, -1.6);
+  ridge.castShadow = false;
+  ridge.receiveShadow = false;
+  return ridge;
 }
 
 function buildPlatformMesh(

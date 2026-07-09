@@ -26,6 +26,41 @@
 
 ---
 
+## Session: 2026-06-04 (Phase 7.1 finale — Playhouse / World 6 T-Rex BOSS; BUILT — 5/5 areas, 6-world arc complete)
+
+**Goal met:** The **T-Rex boss** (World 6 / Playhouse) is built — the game's **climax and the payoff for every token collected**. Eloise throws her lifetime `tokensCollected` at the T-Rex, dodging its telegraphed attacks; **3 hits in the recovery window tame it → `worldComplete`**. This is the **first behavioral set-piece** in the codebase (not a sketch→encode level) and **completes the 6-world arc**. Brainstorm → spec → plan → subagent-driven execution (per-task implementer + spec/quality review, controller-verified on disk + runtime-smoked in-browser after each commit). Spec: `docs/superpowers/specs/2026-06-04-trex-boss-design.md`; plan: `docs/superpowers/plans/2026-06-04-trex-boss.md`.
+
+### Design decisions (the brainstorm)
+- **Token-ammo throw** (user's idea, not stomping): every token collected across all six worlds becomes the ammo Eloise throws — Foreshadow/Pay-off at whole-game scale. New verb = throw + dodge (gentler than stomping a boss).
+- **Strictly-finite ammo** (depletes per throw, no retrieval) with a **companion bailout at zero** — all five companions stand on the sidelines and toss a handful if you run dry, so the fight can never soft-lock (and it seeds the 7.5 ending). Arrive-at-0 also handled.
+- **Hits only count in the T-Rex's recovery window** (readable dodge→opening→throw rhythm). **Glide = entry gate only** (no in-fight role). **Sprites effect-stubbed** (ship the fight; real "tamed" sprite is a later art task).
+
+### Completed (commits e165fa7 → caca8df, on main)
+- **`bossFight` pure state machine + `resolveThrow`** (`e165fa7`, TDD, 13 tests): intro→telegraph→attack→recovery→… ; deterministic stomp/charge alternation; recovery-only hits; HP→won; escalation with telegraph ≥1.0s / recovery ≥2.0s floors; ammo spend + bailout. Phaser-free, the deterministic substitute for the reachability lint a real-time boss can't use.
+- **`Player.setPowersEnabled(false)`** (`966100b`): suppresses the X context-power block (dash/charge/glide/wall-climb) so X is free for "throw" in the arena; movement/jump/double-jump (Space-driven) unaffected; default true → existing levels byte-identical.
+- **`aimVelocity` (TDD) + `ThrownToken`** (`fa7a1fb`): pure auto-aim helper (4 tests) + the gravity-free token projectile.
+- **`BossScene` — full arena fight** (`f7ad65c`): thin Phaser shell over `bossFight`. Arena (sky + ground + 5 sideline companions), Player (powers off), T-Rex set-piece, attacks (stomp shockwave / charge → `applyDamage`), X-throw auto-aim spending `tokensCollected`, recovery-window hit registration, tamed win (tint + hearts + `worldComplete` + banner), companion-bailout beat, 0-hearts fight-reset, own HUD (`treasures:` ammo / hearts / 3 boss-HP pips), ESC→menu, SHUTDOWN teardown. *(Plan Tasks 4–8 were merged into one file — incremental scene-building conflicted with `noUnusedLocals`, which flags write-only private fields.)*
+- **Routing** (`caca8df`): `GameScene.handleExit` terminal exit (Backyard finale, no next catalog entry) now `scene.stop("UIScene") + scene.start("BossScene")` instead of setting `worldComplete` directly. `BossScene` registered in `main.ts` + `eloiseLoadBoss()` dev helper.
+
+### Verification
+`npm run build` green: **311 tests** (294 at session start → +17: 13 bossFight + 4 aimVelocity), tsc clean, reachability lint over the 25 catalog levels (boss is not a catalog level), texture smoke, vite build ok. Each commit verified on disk (phantom-SHA caution). **Runtime smoke** (dev preview): arena renders (4 hearts, `treasures: 87`, 3 pips, prompt, 5 companions, Eloise, grumpy-friendly T-Rex); manually pumped the loop intro→telegraph(roar)→stomp→recovery→hit (hp 3→2)→telegraph; throw spends a treasure + spawns a projectile; 3 in-window hits → `worldComplete` + green tamed T-Rex + "You tamed the T-Rex!" banner; **Backyard-finale exit routes into BossScene** (active scenes → `[BossScene]`); no console errors. *(Phaser throttles rAF in the background preview tab, so the machine was driven via direct `update()`/`processQueue()` pumps — the live loop runs it the same way.)*
+
+### Carried-forward (non-blocking)
+- **Manual feel playtest** — Phaser ignores synthetic input, so attack-telegraph readability, dodge fairness, throw timing, and the bailout moment are a human handoff. Mechanical correctness is unit-tested; the fight is screenshot- + pump-verified.
+- **Real "tamed" T-Rex sprite** (+ optional "dizzy") — ROADMAP 7.2 art follow-up (currently effect-stubbed: tint+hearts / stars-wobble).
+- **Dev-helper quirk:** `eloiseLoadBoss()` triggered from the menu leaves MenuScene running (it only stops GameScene/UIScene, assuming the GameScene→boss flow). Harmless; the real routing stops both correctly.
+
+### Next Session Should
+1. **Manual-playtest the boss** (the one thing automation can't do): play to the Backyard finale (or `eloiseLoadBoss()`), feel the telegraph/dodge/throw timing, confirm the bailout at 0 ammo and the 0-hearts reset.
+2. **Scripted cutscene system (ROADMAP 7.3.5)** — the reusable engine 7.4 (intro) + 7.5 (ending) depend on; replaces the interim "Press X to throw!" / power-unlock prompts with real per-power cutscenes.
+3. Then **intro (7.4)** → **ending (7.5, companions parade — the boss already puts all five on screen + sets `worldComplete`)** → **full playtest + polish (7.6)** → V1 to itch.io. Plus the real **tamed sprite (7.2)** art pass whenever.
+
+### Session close
+- Final holistic review (opus) over the whole feature: **SHIP IT** — no Critical/Important findings; applied one Minor polish (`a5eebf3` — kill the in-flight T-Rex tween in `resetFight` so a mid-charge death doesn't slide the T-Rex across the reset intro).
+- Commit chain on `main`: `e165fa7` → `966100b` → `fa7a1fb` → `f7ad65c` → `caca8df` → `fedb9b0` (docs) → `a5eebf3` (polish). `npm run build` green (311 tests), tree clean, local-only (no remote).
+- Plan deviation worth remembering: scene Tasks 4–8 were merged into one `BossScene.ts` because `noUnusedLocals` flags **write-only private fields**, so incremental scene-building across tasks fails the typecheck gate at each step.
+---
+
 ## Session: 2026-06-03 (Phase 7.1 — Backyard / World 5; DESIGN + PLAN ONLY, not built)
 
 **Outcome:** Re-scoped World 5 from "Living Room" to an **outdoor Backyard** and produced a committed spec + implementation plan. **No source code changed — design/planning only**; execution paused at the user's request.

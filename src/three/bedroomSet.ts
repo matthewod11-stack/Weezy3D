@@ -482,9 +482,80 @@ function buildTeddy(x: number, rand: () => number): THREE.Group {
   return group;
 }
 
-/** Alphabet block: soft-colored cube with a cream face inset. NO shadow. */
-function buildBlock(x: number, size: number, color: number, rotY: number, z = TOY_Z): THREE.Group {
+/** #rrggbb string scaled toward black (f<1) — for letter/edge tints. */
+function shade(color: number, f: number): string {
+  const r = Math.round(((color >> 16) & 0xff) * f);
+  const g = Math.round(((color >> 8) & 0xff) * f);
+  const b = Math.round((color & 0xff) * f);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * Painted-mode alphabet-block face: pastel frame, rounded cream panel, a
+ * chunky letter in the frame's darker shade — the 3D cousin of the toys in
+ * the backdrop paintings. Cached per letter+color (playtest 2026-07-08:
+ * the real 3D toys beat flat cutout images; beautify THEM).
+ */
+const blockFaceCache = new Map<string, THREE.CanvasTexture>();
+function letterBlockTexture(letter: string, color: number): THREE.CanvasTexture {
+  const key = `${letter}-${color}`;
+  const cached = blockFaceCache.get(key);
+  if (cached) return cached;
+  const cv = document.createElement("canvas");
+  cv.width = 128;
+  cv.height = 128;
+  const ctx = cv.getContext("2d")!;
+  ctx.fillStyle = shade(color, 1);
+  ctx.fillRect(0, 0, 128, 128);
+  // Soft outer edge so cube corners read slightly beveled.
+  ctx.strokeStyle = shade(color, 0.82);
+  ctx.lineWidth = 10;
+  ctx.strokeRect(0, 0, 128, 128);
+  ctx.fillStyle = "#fdf3e3";
+  ctx.beginPath();
+  ctx.roundRect(22, 22, 84, 84, 14);
+  ctx.fill();
+  ctx.fillStyle = shade(color, 0.62);
+  ctx.font = "bold 62px 'Arial Rounded MT Bold', 'Comic Sans MS', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(letter, 64, 68);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  blockFaceCache.set(key, tex);
+  return tex;
+}
+
+/**
+ * Alphabet block. Classic: soft-colored cube with a cream inset. Painted
+ * (`letter` given): lettered faces + the quilt terrain's emissive lift so
+ * the block stays candy-bright in shadow. NO shadow either way.
+ */
+function buildBlock(
+  x: number,
+  size: number,
+  color: number,
+  rotY: number,
+  z = TOY_Z,
+  letter?: string,
+): THREE.Group {
   const group = new THREE.Group();
+  if (letter) {
+    const tex = letterBlockTexture(letter, color);
+    const cube = new THREE.Mesh(
+      new THREE.BoxGeometry(size, size, size),
+      new THREE.MeshLambertMaterial({
+        map: tex,
+        emissive: 0xffffff,
+        emissiveMap: tex,
+        emissiveIntensity: 0.32,
+      }),
+    );
+    cube.position.set(x, size / 2, z);
+    cube.rotation.y = rotY;
+    group.add(cube);
+    return group;
+  }
   const cube = new THREE.Mesh(
     new THREE.BoxGeometry(size, size, size),
     new THREE.MeshLambertMaterial({ color }),
@@ -501,8 +572,53 @@ function buildBlock(x: number, size: number, color: number, rotY: number, z = TO
   return group;
 }
 
-function buildBall(x: number, rand: () => number): THREE.Mesh {
+/** Candy beach-ball stripes (equirect gores) for painted mode. Cached. */
+const ballTextureCache = new Map<string, THREE.CanvasTexture>();
+function candyBallTexture(c1: number, c2: number): THREE.CanvasTexture {
+  const key = `${c1}-${c2}`;
+  const cached = ballTextureCache.get(key);
+  if (cached) return cached;
+  const cv = document.createElement("canvas");
+  cv.width = 256;
+  cv.height = 128;
+  const ctx = cv.getContext("2d")!;
+  const stripes = [shade(c1, 1), "#fdf3e3", shade(c2, 1), "#fdf3e3"];
+  const w = 256 / 8;
+  for (let i = 0; i < 8; i += 1) {
+    ctx.fillStyle = stripes[i % stripes.length]!;
+    ctx.fillRect(i * w, 0, w + 1, 128);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  ballTextureCache.set(key, tex);
+  return tex;
+}
+
+function buildBall(x: number, rand: () => number, candy = false): THREE.Mesh {
   const r = 0.5 + rand() * 0.18;
+  if (candy) {
+    // Beach-ball gores in the painted palette, emissive-lifted like the
+    // quilt so it never reads as the muddy sphere the playtest flagged.
+    const pairs: Array<[number, number]> = [
+      [0xf7a8c9, 0x9fd0f5],
+      [0xaee8c0, 0xf7a8c9],
+      [0xffdf91, 0x9fd0f5],
+    ];
+    const [c1, c2] = pairs[Math.floor(rand() * pairs.length)]!;
+    const tex = candyBallTexture(c1, c2);
+    const ball = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 20, 14),
+      new THREE.MeshLambertMaterial({
+        map: tex,
+        emissive: 0xffffff,
+        emissiveMap: tex,
+        emissiveIntensity: 0.3,
+      }),
+    );
+    ball.rotation.z = (rand() - 0.5) * 0.9;
+    ball.position.set(x, r, TOY_Z + 0.5);
+    return ball;
+  }
   const colors = [BEDROOM.rose, BEDROOM.teal, BEDROOM.butter];
   const ball = new THREE.Mesh(
     new THREE.SphereGeometry(r, 20, 14),
@@ -524,16 +640,23 @@ function buildCrayon(x: number, color: number, rotZ: number): THREE.Mesh {
   return crayon;
 }
 
-/** A loose cluster of glassy little marbles. */
-function buildMarbles(x: number, rand: () => number): THREE.Group {
+/** A loose cluster of glassy little marbles. Candy palette in painted mode. */
+function buildMarbles(x: number, rand: () => number, candy = false): THREE.Group {
   const group = new THREE.Group();
-  const colors = [BEDROOM.teal, BEDROOM.rose, BEDROOM.sage];
+  const colors = candy
+    ? [0xf7a8c9, 0x9fd0f5, 0xaee8c0]
+    : [BEDROOM.teal, BEDROOM.rose, BEDROOM.sage];
   const n = 2 + Math.floor(rand() * 2);
   for (let i = 0; i < n; i += 1) {
     const r = 0.09 + rand() * 0.05;
+    const color = colors[i % colors.length]!;
     const marble = new THREE.Mesh(
       new THREE.SphereGeometry(r, 10, 8),
-      new THREE.MeshLambertMaterial({ color: colors[i % colors.length]! }),
+      // The emissive nudge keeps foreground glass out of the mud (they sit
+      // in the vignette's darkest band).
+      new THREE.MeshLambertMaterial(
+        candy ? { color, emissive: color, emissiveIntensity: 0.3 } : { color },
+      ),
     );
     marble.position.set(x + (rand() - 0.5) * 0.8, r, FOREGROUND_Z + (rand() - 0.5) * 0.4);
     group.add(marble);
@@ -542,9 +665,9 @@ function buildMarbles(x: number, rand: () => number): THREE.Group {
 }
 
 /** Three crossed jack rods. */
-function buildJacks(x: number, rand: () => number): THREE.Group {
+function buildJacks(x: number, rand: () => number, candy = false): THREE.Group {
   const group = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color: 0xb9bec6 });
+  const mat = new THREE.MeshLambertMaterial({ color: candy ? 0xc9b8ef : 0xb9bec6 });
   const rots: Array<[number, number]> = [
     [0, rand() * Math.PI],
     [Math.PI / 3, rand() * Math.PI],
@@ -808,22 +931,29 @@ export function buildBedroomSet(
   const blockColors = paintedWall
     ? [0xf7a8c9, 0x9fd0f5, 0xaee8c0, 0xffdf91]
     : [BEDROOM.sage, BEDROOM.butter, BEDROOM.rose, BEDROOM.teal];
+  // Painted mode: real lettered alphabet blocks + candy beach balls — the
+  // beautified 3D toys ("E" for Eloise in the rotation).
+  const letters = ["A", "B", "C", "E"];
   cadenceSpots(minX + 3, maxX - 3, 9, 14, rand)
     .filter((x) => onFloor(x, 1.2))
     .forEach((x, i) => {
     if (rand() < 0.3) {
-      group.add(buildBall(x, rand));
+      group.add(buildBall(x, rand, paintedWall));
       return;
     }
     const size = 0.55 + rand() * 0.35;
-    group.add(buildBlock(x, size, blockColors[i % blockColors.length]!, rand() * 1.2));
+    const letter = paintedWall ? letters[i % letters.length] : undefined;
+    group.add(buildBlock(x, size, blockColors[i % blockColors.length]!, rand() * 1.2, TOY_Z, letter));
     if (rand() < 0.4) {
-      group.add(buildBlock(x + 0.55, size * 0.7, blockColors[(i + 2) % 4]!, rand() * 1.2));
+      const letter2 = paintedWall ? letters[(i + 2) % letters.length] : undefined;
+      group.add(buildBlock(x + 0.55, size * 0.7, blockColors[(i + 2) % 4]!, rand() * 1.2, TOY_Z, letter2));
     }
   });
 
   // ── Foreground crumbs every ~25–30 units, rotating small items. ────────
-  const crayonColors = [BEDROOM.teal, 0xe07a5f, BEDROOM.sage, BEDROOM.butter];
+  const crayonColors = paintedWall
+    ? [0xf78bb8, 0x8ec9f0, 0x9fe0ae, 0xffd166]
+    : [BEDROOM.teal, 0xe07a5f, BEDROOM.sage, BEDROOM.butter];
   cadenceSpots(minX + 5, maxX - 4, 25, 30, rand)
     .filter((x) => onFloor(x, 1.2))
     .forEach((x, i) => {
@@ -832,10 +962,10 @@ export function buildBedroomSet(
         group.add(buildCrayon(x, crayonColors[Math.floor(rand() * crayonColors.length)]!, (rand() - 0.5) * 0.3));
         break;
       case 1:
-        group.add(buildMarbles(x, rand));
+        group.add(buildMarbles(x, rand, paintedWall));
         break;
       case 2:
-        group.add(buildJacks(x, rand));
+        group.add(buildJacks(x, rand, paintedWall));
         break;
       default:
         group.add(buildDominoes(x, rand));

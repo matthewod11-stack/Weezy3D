@@ -2,6 +2,36 @@
 
 ---
 
+## Session: 2026-07-08 19:20 (Weezy3D session 9 — PAINTED APPROVED → DEFAULT; recipe deepened; props tried-and-cut)
+
+**The quilt terrain passed playtest ("it looks and feels great — it's a pass"), closing the two-round painted-diorama loop.** Two decisions followed immediately: deepen Bedroom with the remaining recipe ingredients BEFORE rolling to worlds 2–5, and make painted the DEFAULT look. All shipped this session, including one full ingredient that was built, playtested, rejected, and replaced within the hour.
+
+### Completed
+- **Painted is the default look** (`main.ts`) — `?look=classic` is the procedural opt-out; worlds without backdrop art fall back automatically (`hasPaintedBackdrop` = the rollout switch).
+- **Rolling floor-top silhouettes** — `rollingProfile.ts` (pure, 7 tests): seeded two-wave clamped-sine hummocks, ends tapered; `buildRollingRidge` in `level3d.ts` extrudes them in plush at z [−1.6, −0.5] — BEHIND the shadow blob (−0.3), so physics/feet-planting untouched.
+- **Fluttering wallpaper butterflies** — `butterflyPath.ts` (pure, 6 tests): incommensurate-sine wander + flap-with-glide envelope; flock view in `paintedBackdrop.ts` (~5–9 two-wing butterflies at z −6.9, ONE shared canvas wing texture), ticked off the main loop's `elapsed`. Drift verified numerically across forced frames.
+- **Parallax cutout props: TRIED AND REJECTED (user verdict)** — the third named ingredient shipped fully (6 NanoBanana furniture/toy cutouts style-locked to `Bedroom.jpg`, rembg u2netp pipeline, two-depth pit-aware builder), survived one scale iteration ("she's shrunk — furniture must be giant, toys bigger"), then was cut on the second look: *"the 3D blocks etc are more alive than these flat images — if anything those should be beautified."* Code + assets fully removed same session.
+- **Beautified 3D toys in painted mode instead** (`bedroomSet.ts`) — lettered alphabet-block faces (cached canvas textures, "E" for Eloise in rotation, echoing the painted D/A/K blocks), candy beach-ball gore stripes, candy marbles/crayons/jacks in the foreground crumbs — all with the quilt's emissiveMap lift.
+- **Docs:** playbook §5.7 records approval + the rejected-ingredient lesson (+ superseded-note on the round-2 parallax pointer); CLAUDE.md status updated; project memory saved (`project-painted-diorama-approved`).
+
+### Issues Encountered
+- None blocking. Pre-commit review (2-axis subagent) found one doc-rot line in the playbook — fixed inline before commit.
+
+### Verification
+`npm run build` green: **477 tests** (464 at session start → +13: 7 rollingProfile + 6 butterflyPath), tsc clean. Browser-verified at 1440×810: painted boots by default with zero console errors; scene census 6 lights (at budget), 87 casters, 2 Points fields, 0 leftover prop planes; butterflies drift + flap numerically; screenshot tour segs 1/2/4.
+
+### Paid-for lessons (playbook §5.7 has the full record)
+- **Flat billboards near the play plane lose to real lit geometry.** The painted-art-in-3D recipe works for Eloise + far planes, NOT mid-depth static objects next to actual meshes.
+- **Scale fiction: Eloise is SHRUNK** — furniture must tower (~8×), toys are her peers, never trinkets.
+- The cutout generation pipeline itself works first-shot (reference-lock + "single object, plain background" + rembg) — keep it pointed at far planes / paintings / UI.
+
+### Next Session Should
+1. **Roll the painted recipe to worlds 2–5** (playbook §5.7): per world = 5 backdrop paintings + a tileable wallpaper swatch + `BACKDROP_URLS`/`WALLPAPER_URLS` entries + the set's `paintedWall` opt + candy-palette pass over that set's 3D clutter. Kitchen/Living Room reference art already at `docs/reference-art/`.
+2. **WebAudio sound blips** — the game is silent; biggest remaining immersion gap.
+3. Still queued: NanoBanana pose batch (dash/glide/climb/hurt Eloise frames), diegetic win beat, in-page world hand-off fade.
+
+---
+
 ## Session: 2026-07-02 (Weezy3D session 8 cont'd — Wonder-style plush terrain, commit 9df97fb)
 
 **User shared Mario Wonder side-scroller references after the round-2 painted-diorama playtest** ("this is an improvement… what my mind's eye wants to see is closer to this"). Diagnosis of the reference shots: Wonder's backgrounds are actually simple (soft gradient sky, hazy shapes) — the beauty is in the **terrain**. Our gameplay platforms had stayed flat placeholder boxes through both the procedural pass (session 8) and the painted-diorama pass (round 1 + round 2) — decorated around, painted behind, never made beautiful themselves.
@@ -272,38 +302,3 @@ Spec: `docs/superpowers/specs/2026-06-12-3d-enemies-companions-design.md` · Pla
 2. **ROADMAP 7.4 (intro)** then **7.5 (ending)** — author content for the cutscene engine via the `page`/`clear`/`fade` beat-kind seam (each its own short spec). The ending already has all 5 companions on screen + `worldComplete` from the boss.
 3. The real **tamed T-Rex sprite (7.2)** art pass, then **7.6 full playtest** → V1 to itch.io.
 
----
-
-## Session: 2026-06-04 (Phase 7.1 finale — Playhouse / World 6 T-Rex BOSS; BUILT — 5/5 areas, 6-world arc complete)
-
-**Goal met:** The **T-Rex boss** (World 6 / Playhouse) is built — the game's **climax and the payoff for every token collected**. Eloise throws her lifetime `tokensCollected` at the T-Rex, dodging its telegraphed attacks; **3 hits in the recovery window tame it → `worldComplete`**. This is the **first behavioral set-piece** in the codebase (not a sketch→encode level) and **completes the 6-world arc**. Brainstorm → spec → plan → subagent-driven execution (per-task implementer + spec/quality review, controller-verified on disk + runtime-smoked in-browser after each commit). Spec: `docs/superpowers/specs/2026-06-04-trex-boss-design.md`; plan: `docs/superpowers/plans/2026-06-04-trex-boss.md`.
-
-### Design decisions (the brainstorm)
-- **Token-ammo throw** (user's idea, not stomping): every token collected across all six worlds becomes the ammo Eloise throws — Foreshadow/Pay-off at whole-game scale. New verb = throw + dodge (gentler than stomping a boss).
-- **Strictly-finite ammo** (depletes per throw, no retrieval) with a **companion bailout at zero** — all five companions stand on the sidelines and toss a handful if you run dry, so the fight can never soft-lock (and it seeds the 7.5 ending). Arrive-at-0 also handled.
-- **Hits only count in the T-Rex's recovery window** (readable dodge→opening→throw rhythm). **Glide = entry gate only** (no in-fight role). **Sprites effect-stubbed** (ship the fight; real "tamed" sprite is a later art task).
-
-### Completed (commits e165fa7 → caca8df, on main)
-- **`bossFight` pure state machine + `resolveThrow`** (`e165fa7`, TDD, 13 tests): intro→telegraph→attack→recovery→… ; deterministic stomp/charge alternation; recovery-only hits; HP→won; escalation with telegraph ≥1.0s / recovery ≥2.0s floors; ammo spend + bailout. Phaser-free, the deterministic substitute for the reachability lint a real-time boss can't use.
-- **`Player.setPowersEnabled(false)`** (`966100b`): suppresses the X context-power block (dash/charge/glide/wall-climb) so X is free for "throw" in the arena; movement/jump/double-jump (Space-driven) unaffected; default true → existing levels byte-identical.
-- **`aimVelocity` (TDD) + `ThrownToken`** (`fa7a1fb`): pure auto-aim helper (4 tests) + the gravity-free token projectile.
-- **`BossScene` — full arena fight** (`f7ad65c`): thin Phaser shell over `bossFight`. Arena (sky + ground + 5 sideline companions), Player (powers off), T-Rex set-piece, attacks (stomp shockwave / charge → `applyDamage`), X-throw auto-aim spending `tokensCollected`, recovery-window hit registration, tamed win (tint + hearts + `worldComplete` + banner), companion-bailout beat, 0-hearts fight-reset, own HUD (`treasures:` ammo / hearts / 3 boss-HP pips), ESC→menu, SHUTDOWN teardown. *(Plan Tasks 4–8 were merged into one file — incremental scene-building conflicted with `noUnusedLocals`, which flags write-only private fields.)*
-- **Routing** (`caca8df`): `GameScene.handleExit` terminal exit (Backyard finale, no next catalog entry) now `scene.stop("UIScene") + scene.start("BossScene")` instead of setting `worldComplete` directly. `BossScene` registered in `main.ts` + `eloiseLoadBoss()` dev helper.
-
-### Verification
-`npm run build` green: **311 tests** (294 at session start → +17: 13 bossFight + 4 aimVelocity), tsc clean, reachability lint over the 25 catalog levels (boss is not a catalog level), texture smoke, vite build ok. Each commit verified on disk (phantom-SHA caution). **Runtime smoke** (dev preview): arena renders (4 hearts, `treasures: 87`, 3 pips, prompt, 5 companions, Eloise, grumpy-friendly T-Rex); manually pumped the loop intro→telegraph(roar)→stomp→recovery→hit (hp 3→2)→telegraph; throw spends a treasure + spawns a projectile; 3 in-window hits → `worldComplete` + green tamed T-Rex + "You tamed the T-Rex!" banner; **Backyard-finale exit routes into BossScene** (active scenes → `[BossScene]`); no console errors. *(Phaser throttles rAF in the background preview tab, so the machine was driven via direct `update()`/`processQueue()` pumps — the live loop runs it the same way.)*
-
-### Carried-forward (non-blocking)
-- **Manual feel playtest** — Phaser ignores synthetic input, so attack-telegraph readability, dodge fairness, throw timing, and the bailout moment are a human handoff. Mechanical correctness is unit-tested; the fight is screenshot- + pump-verified.
-- **Real "tamed" T-Rex sprite** (+ optional "dizzy") — ROADMAP 7.2 art follow-up (currently effect-stubbed: tint+hearts / stars-wobble).
-- **Dev-helper quirk:** `eloiseLoadBoss()` triggered from the menu leaves MenuScene running (it only stops GameScene/UIScene, assuming the GameScene→boss flow). Harmless; the real routing stops both correctly.
-
-### Next Session Should
-1. **Manual-playtest the boss** (the one thing automation can't do): play to the Backyard finale (or `eloiseLoadBoss()`), feel the telegraph/dodge/throw timing, confirm the bailout at 0 ammo and the 0-hearts reset.
-2. **Scripted cutscene system (ROADMAP 7.3.5)** — the reusable engine 7.4 (intro) + 7.5 (ending) depend on; replaces the interim "Press X to throw!" / power-unlock prompts with real per-power cutscenes.
-3. Then **intro (7.4)** → **ending (7.5, companions parade — the boss already puts all five on screen + sets `worldComplete`)** → **full playtest + polish (7.6)** → V1 to itch.io. Plus the real **tamed sprite (7.2)** art pass whenever.
-
-### Session close
-- Final holistic review (opus) over the whole feature: **SHIP IT** — no Critical/Important findings; applied one Minor polish (`a5eebf3` — kill the in-flight T-Rex tween in `resetFight` so a mid-charge death doesn't slide the T-Rex across the reset intro).
-- Commit chain on `main`: `e165fa7` → `966100b` → `fa7a1fb` → `f7ad65c` → `caca8df` → `fedb9b0` (docs) → `a5eebf3` (polish). `npm run build` green (311 tests), tree clean, local-only (no remote).
-- Plan deviation worth remembering: scene Tasks 4–8 were merged into one `BossScene.ts` because `noUnusedLocals` flags **write-only private fields**, so incremental scene-building across tasks fails the typecheck gate at each step.

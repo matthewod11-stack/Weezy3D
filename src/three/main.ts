@@ -18,7 +18,12 @@ import { abilitiesForArea } from "../config/gating";
 import type { AbilityId } from "../config/abilities";
 import { animateExit, animateTokens, buildLevel, TOKEN_POP_MS } from "./level3d";
 import { createFxPool } from "./fx";
-import { buildPaintedBackdrop, hasPaintedBackdrop } from "./paintedBackdrop";
+import {
+  buildButterflies,
+  buildPaintedBackdrop,
+  hasPaintedBackdrop,
+  type ButterflyField,
+} from "./paintedBackdrop";
 import { buildBedroomSet } from "./bedroomSet";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -81,10 +86,12 @@ async function boot(): Promise<void> {
   const world = worlds[worldIndex]!;
   const worldLabel = WORLD_LABELS[world.areaId] ?? world.areaId;
   const theme = themeForArea(world.areaId);
-  // `?look=painted` — the painted-diorama experiment (A/B vs the procedural
-  // look): painted backdrop planes replace the procedural wall layer, floor
-  // goes pink to match the art, and a gentle bloom pass frames the glow.
-  const painted = params.get("look") === "painted" && hasPaintedBackdrop(world.areaId);
+  // Painted diorama is the DEFAULT look (approved 2026-07-08) wherever the
+  // world has backdrop art: painted planes replace the procedural wall layer,
+  // floor goes pink to match the art, and a gentle bloom pass frames the glow.
+  // `?look=classic` restores the procedural look; worlds without paintings
+  // (everything but bedroom so far) stay procedural automatically.
+  const painted = params.get("look") !== "classic" && hasPaintedBackdrop(world.areaId);
 
   // ── Level data: same source + scaling as 2D, then stitched continuous ──
   const scaledLevels = world.entries.map((e) =>
@@ -156,7 +163,12 @@ async function boot(): Promise<void> {
     : theme.surfaces;
   const build = buildLevel(level, surfaces);
   scene.add(build.group);
-  if (painted) scene.add(buildPaintedBackdrop(world.areaId, segments));
+  let butterflies: ButterflyField | null = null;
+  if (painted) {
+    scene.add(buildPaintedBackdrop(world.areaId, segments));
+    butterflies = buildButterflies(toWorldX(level.bounds.minX), toWorldX(level.bounds.maxX));
+    scene.add(butterflies.group);
+  }
 
   // Shared one-shot particle pool (landing dust, token sparkle, smash debris,
   // stomp poofs) — ONE THREE.Points for the whole world per the perf budget.
@@ -634,6 +646,7 @@ async function boot(): Promise<void> {
     animateExit(build, elapsed);
     fx.update(dtMs);
     set.update?.(dtMs, elapsed);
+    butterflies?.update(elapsed);
     updateCamera(dtMs);
 
     if (composer) composer.render();
