@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-09
 
-**Status:** Draft for written-spec review; composition, seam, reaction, and production directions approved in the visual companion
+**Status:** Approved 2026-07-09; composition, seam, reaction, production, and written specification approved by the user
 
 **Parent goal:** Lock Bedroom as the production visual/immersion benchmark, turn the result into the world-building cookbook, then apply that cookbook to the shortened remaining worlds.
 
