@@ -117,7 +117,7 @@ async function boot(): Promise<void> {
   if (painted) {
     // Rosy palette + fog pushed out so the mid-ground keeps its saturation
     // against the (fog-free) painted backdrop. fogNear stays ≥ 12.
-    scene.background = new THREE.Color(0xf6dfe8);
+    scene.background = new THREE.Color(theme.paintedBackground ?? 0xf6dfe8);
     scene.fog = new THREE.Fog(0xf6dfe8, theme.fogNear + 6, theme.fogFar + 10);
   } else {
     scene.background = new THREE.Color(theme.background ?? theme.fogColor);
@@ -153,9 +153,11 @@ async function boot(): Promise<void> {
   // ── World ───────────────────────────────────────────────────────────────
   // Painted mode: pink shag floor to match the backdrop paintings.
   const surfaces = painted
-    ? {
+      ? {
         ...theme.surfaces,
-        floorBase: "#f2c3d6", // pink shag to match the backdrop paintings
+        floorBase: theme.paintedFloorBase ?? "#f2c3d6",
+        floorTopStyle: theme.paintedFloorStyle,
+        platformTopBase: theme.paintedPlatformTopBase,
         platformColor: 0xf0cf9a, // honey wood — harmonizes with painted shelves
         lipColor: 0xc08f4e,
         plush: true, // Wonder-style quilt terrain — the platform is the art

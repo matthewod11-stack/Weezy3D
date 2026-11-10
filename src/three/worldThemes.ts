@@ -29,6 +29,14 @@ export interface WorldTheme {
   fogFar: number;
   /** Scene background; defaults to fogColor. Backyard overrides with sky blue. */
   background?: number;
+  /** Color revealed beyond the edges of painted backdrop art. */
+  paintedBackground?: number;
+  /** Plush color used only on the broad walkable ground in painted mode. */
+  paintedFloorBase?: string;
+  /** Painted-mode broad ground treatment. */
+  paintedFloorStyle?: "plush" | "wood";
+  /** Plush color for elevated painted-mode platform tops. */
+  paintedPlatformTopBase?: string;
   buildSet(minX: number, maxX: number): WorldSet;
   surfaces: WorldSurfaces;
 }
@@ -38,6 +46,10 @@ export const WORLD_THEMES: Record<string, WorldTheme> = {
     fogColor: BEDROOM.fogColor,
     fogNear: BEDROOM.fogNear,
     fogFar: BEDROOM.fogFar,
+    paintedBackground: 0xf2c3d6,
+    paintedFloorBase: "#d2aa76",
+    paintedFloorStyle: "wood",
+    paintedPlatformTopBase: "#7fb8d4",
     buildSet: buildBedroomSet,
     surfaces: bedroomSurfaces,
   },
