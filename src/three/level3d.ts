@@ -2,7 +2,6 @@ import * as THREE from "three";
 import type { LevelData } from "../types/level";
 import { rectCenterWorld, toWorldLen, toWorldX, toWorldY } from "./coords";
 import type { PhysRect } from "./physics3d";
-import { rollingHeights } from "./rollingProfile";
 
 /**
  * Builds the gameplay geometry for a level from the same LevelData the 2D
@@ -66,6 +65,10 @@ export interface WorldSurfaces {
    * single-color boxes. The terrain is the art, not a placeholder.
    */
   plush?: boolean;
+  /** Broad ground top treatment; elevated platforms remain plush. */
+  floorTopStyle?: "plush" | "wood";
+  /** Optional separate plush color for elevated walkable tops. */
+  platformTopBase?: string;
 }
 
 /** Bedroom look — the original carpet/wood materials, kept as the default. */
@@ -174,10 +177,11 @@ function quiltTexture(): THREE.Texture {
   });
 }
 
-/** Plush pale-pink carpet for terrain top lips (denser, fluffier speckle). */
-function plushTexture(): THREE.Texture {
-  return makeCanvasTexture("plush", 128, (ctx, rand) => {
-    ctx.fillStyle = "#fbe0eb";
+/** Plush carpet for terrain top lips (denser, fluffier speckle). */
+function plushTexture(base = "#fbe0eb"): THREE.Texture {
+  const key = `plush:${base}`;
+  const texture = makeCanvasTexture(key, 128, (ctx, rand) => {
+    ctx.fillStyle = base;
     ctx.fillRect(0, 0, 128, 128);
     for (let i = 0; i < 2400; i += 1) {
       const x = rand() * 128;
@@ -186,6 +190,66 @@ function plushTexture(): THREE.Texture {
       ctx.fillRect(x, y, 1.8, 1.8);
     }
   });
+  texture.name = key;
+  return texture;
+}
+
+/** Light-oak planks: staggered seams, alternating boards, grain, and knots. */
+function woodFloorTexture(base: string): THREE.Texture {
+  const key = `wood-floor:${base}`;
+  const texture = makeCanvasTexture(key, 256, (ctx, rand) => {
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 256, 256);
+
+    const boardH = 64;
+    for (let row = 0; row < 4; row += 1) {
+      const y = row * boardH;
+      ctx.fillStyle =
+        row % 2 === 0 ? "rgba(255, 244, 218, 0.10)" : "rgba(114, 70, 34, 0.07)";
+      ctx.fillRect(0, y, 256, boardH);
+
+      // Long horizontal seams establish the plank rows.
+      ctx.strokeStyle = "rgba(104, 64, 34, 0.48)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, y + 1.5);
+      ctx.lineTo(256, y + 1.5);
+      ctx.stroke();
+
+      // Staggered butt joints prevent the texture from reading as stripes.
+      const jointX = row % 2 === 0 ? 82 : 176;
+      ctx.beginPath();
+      ctx.moveTo(jointX, y);
+      ctx.lineTo(jointX, y + boardH);
+      ctx.stroke();
+
+      // Fine grain runs with the boards, varied deterministically per row.
+      ctx.strokeStyle = "rgba(112, 68, 35, 0.24)";
+      ctx.lineWidth = 1.2;
+      for (let grain = 0; grain < 11; grain += 1) {
+        const grainY = y + 8 + rand() * (boardH - 16);
+        const startX = rand() * 150;
+        const length = 38 + rand() * 90;
+        ctx.beginPath();
+        ctx.moveTo(startX, grainY);
+        ctx.lineTo(Math.min(256, startX + length), grainY + (rand() - 0.5) * 3);
+        ctx.stroke();
+      }
+    }
+
+    // Sparse knots break up repetition without turning the floor noisy.
+    ctx.strokeStyle = "rgba(92, 54, 28, 0.42)";
+    ctx.lineWidth = 2;
+    for (let knot = 0; knot < 4; knot += 1) {
+      const x = 28 + rand() * 200;
+      const y = 18 + rand() * 220;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 7 + rand() * 5, 3 + rand() * 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  });
+  texture.name = key;
+  return texture;
 }
 
 /**
@@ -197,6 +261,7 @@ function plushTexture(): THREE.Texture {
 function buildPlushPlatform(
   p: LevelData["platforms"][number],
   isFloor: boolean,
+  surfaces: WorldSurfaces,
 ): THREE.Group {
   const { cx, cy, w, h } = rectCenterWorld(p);
   const depth = isFloor ? FLOOR_DEPTH : SHELF_DEPTH;
@@ -240,14 +305,18 @@ function buildPlushPlatform(
 
   // Plush lip: slight x-overhang, rounded ends via a capsule-ish trio —
   // one slab + two end cylinders (cheap rounding, no addons dependency).
-  const plushTex = plushTexture().clone();
+  const isWoodFloor = isFloor && surfaces.floorTopStyle === "wood";
+  const topBase = isFloor ? surfaces.floorBase : (surfaces.platformTopBase ?? surfaces.floorBase);
+  const topTexture = isWoodFloor ? woodFloorTexture(topBase) : plushTexture(topBase);
+  const plushTex = topTexture.clone();
+  plushTex.name = isWoodFloor ? `wood-floor:${topBase}` : `plush:${topBase}`;
   plushTex.needsUpdate = true;
-  plushTex.repeat.set(Math.max(1, w / 2.2), 1);
+  plushTex.repeat.set(Math.max(1, w / (isWoodFloor ? 6 : 2.2)), isWoodFloor ? 2 : 1);
   const lipMat = new THREE.MeshLambertMaterial({
     map: plushTex,
     emissive: 0xffffff,
     emissiveMap: plushTex,
-    emissiveIntensity: 0.32,
+    emissiveIntensity: isWoodFloor ? 0.1 : 0.32,
   });
   const overhang = isFloor ? 0 : 0.14;
   const slab = new THREE.Mesh(new THREE.BoxGeometry(w + overhang * 2, lipH, depth), lipMat);
@@ -255,10 +324,6 @@ function buildPlushPlatform(
   slab.receiveShadow = true;
   slab.castShadow = !isFloor;
   group.add(slab);
-  if (isFloor) {
-    const ridge = buildRollingRidge(p, cx, cy, w, h);
-    if (ridge) group.add(ridge);
-  }
   if (!isFloor) {
     for (const side of [-1, 1]) {
       const end = new THREE.Mesh(
@@ -271,55 +336,6 @@ function buildPlushPlatform(
     }
   }
   return group;
-}
-
-/**
- * Wonder's ground rolls; ours were rectangles. A visual-only plush ridge
- * along a floor's top — seeded hummocks (rollingProfile.ts) extruded to a
- * z-slab of [-1.6, -0.5]: BEHIND the shadow blob (-0.3) and the play plane,
- * so Eloise, her feet-planting, and physics are untouched. Returns null when
- * the floor is too narrow to roll.
- */
-function buildRollingRidge(
-  p: LevelData["platforms"][number],
-  cx: number,
-  cy: number,
-  w: number,
-  h: number,
-): THREE.Mesh | null {
-  // Seed from level-space geometry so stitched worlds stay deterministic.
-  const heights = rollingHeights(w, p.x * 31 + p.w * 7);
-  if (Math.max(...heights) < 0.05) return null;
-
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  for (let i = 0; i < heights.length; i += 1) {
-    shape.lineTo((i / (heights.length - 1)) * w, heights[i]!);
-  }
-  shape.lineTo(w, 0);
-  shape.closePath();
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.1, bevelEnabled: false });
-
-  const tex = plushTexture().clone();
-  tex.needsUpdate = true;
-  // ExtrudeGeometry UVs are raw shape coords (world units); match the lip's
-  // one-tile-per-2.2-units density.
-  tex.repeat.set(1 / 2.2, 1 / 2.2);
-  const mat = new THREE.MeshLambertMaterial({
-    map: tex,
-    // A touch rosier than the lip so the rolling silhouette reads as its own
-    // layer behind the walk line rather than a lumpy lip.
-    color: 0xf3c3d8,
-    emissive: 0xffffff,
-    emissiveMap: tex,
-    emissiveIntensity: 0.3,
-  });
-  const ridge = new THREE.Mesh(geo, mat);
-  // Shape x=0 at platform left, y=0 at the physics floor top; extrude runs +z.
-  ridge.position.set(cx - w / 2, cy + h / 2, -1.6);
-  ridge.castShadow = false;
-  ridge.receiveShadow = false;
-  return ridge;
 }
 
 function buildPlatformMesh(
@@ -596,7 +612,10 @@ export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SU
   const group = new THREE.Group();
   const solids: PhysRect[] = [];
 
-  group.add(buildUnderFloor(data));
+  // Painted backdrops already contain the room's plush carpet. Leaving their
+  // gaps open preserves that image depth; the classic look still needs its
+  // synthetic under-floor darkness because it has no painted carpet behind it.
+  if (!surfaces.plush) group.add(buildUnderFloor(data));
 
   for (const p of data.platforms) {
     // Floor segments are authored with the (thicker) FLOOR_THICKNESS; shelves
@@ -604,7 +623,7 @@ export function buildLevel(data: LevelData, surfaces: WorldSurfaces = DEFAULT_SU
     const isFloor = p.h >= 28 * 2 - 1;
     if (surfaces.plush) {
       // Painted-diorama terrain: the platform IS the art (quilt + plush lip).
-      group.add(buildPlushPlatform(p, isFloor));
+      group.add(buildPlushPlatform(p, isFloor, surfaces));
     } else {
       group.add(buildPlatformMesh(p, isFloor, surfaces));
       if (!isFloor) group.add(buildShelfLip(p, surfaces));

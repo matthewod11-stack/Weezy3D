@@ -60,6 +60,22 @@ describe("world themes", () => {
     expect(WORLD_THEMES.bedroom!.surfaces.floorBase).toBe("#d8ae96");
   });
 
+  it("bedroom painted mode falls back to carpet pink below the backdrop art", () => {
+    const theme = WORLD_THEMES.bedroom as { paintedBackground?: number };
+    expect(theme.paintedBackground).toBe(0xf2c3d6);
+  });
+
+  it("bedroom painted mode uses light oak ground with blue platform tops", () => {
+    const theme = WORLD_THEMES.bedroom as {
+      paintedFloorBase?: string;
+      paintedFloorStyle?: string;
+      paintedPlatformTopBase?: string;
+    };
+    expect(theme.paintedFloorBase).toBe("#d2aa76");
+    expect(theme.paintedFloorStyle).toBe("wood");
+    expect(theme.paintedPlatformTopBase).toBe("#7fb8d4");
+  });
+
   // ── Bedroom set perf-budget locks (playbook §5.6.9 — law) ──────────────
   // Built at stitched-world scale (~450 units) so cadence dressing is fully
   // exercised. Set builders are node-safe (canvas textures degrade).
