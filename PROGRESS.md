@@ -2,6 +2,53 @@
 
 ---
 
+## Session: 2026-07-25 (README gameplay screenshot refresh)
+
+**Original prompt:** Replace the stale GitHub README screenshot with a current gameplay frame showing Eloise in motion.
+
+### Completed
+- Played and inspected the current painted Bedroom build at 1280×720 using the browser verification seam.
+- Captured idle/look-back, walking, and jumping candidates under `output/readme-candidates/`.
+- Replaced `docs/screenshots/gameplay.jpg` with the strongest jumping frame: full health, current painted art, traversal platforms, tokens, and Eloise's airborne pose.
+- Preserved the README's existing image path, so no Markdown change was required.
+
+### In Progress
+- None for this screenshot-only session.
+
+### Issues Encountered
+- The shared session baseline file could not be persisted outside the workspace; fresh tests still passed.
+- Browser console was clean except for the existing harmless missing `favicon.ico` request.
+
+### Verification
+- Visually inspected the final 1280×720 JPEG after conversion.
+- Full Vitest suite passed: 94 test files / 1008 tests.
+- `npx tsc --noEmit` passed.
+
+### Next Session Should
+1. Roll the approved painted-art recipe out to worlds 2–5.
+2. Decide whether to keep or remove the untracked README screenshot candidates after reviewing them.
+
+---
+
+## Session: 2026-07-10 (painted Bedroom playtest cleanup)
+
+**Original prompt:** Remove the distracting hilly walkway running through the level and replace the disastrous brown jump gaps with the plush carpet already visible in the painted backdrop.
+
+### Completed
+- Removed the visual-only rolling floor ridge from painted plush platforms; collision geometry and jump feel are unchanged.
+- Painted-mode gaps no longer create the brown `buildUnderFloor` occluder, allowing the backdrop's authored carpet to remain visible between platforms. Classic mode retains its synthetic under-floor depth plane.
+- Added a Bedroom-specific painted fallback color (`#f2c3d6`) behind the backdrop, replacing the white revealed below the image with matching carpet pink.
+- Reworked the broad painted-mode ground into light oak (`#d2aa76`) with staggered plank seams, alternating board tones, long grain, and sparse knots; reduced its emissive lift so the wood detail survives the bright scene.
+- Elevated walkable platform tops remain storybook blue (`#7fb8d4`) while their quilted bodies remain pink.
+- Split painted surface policy into ground style/base and elevated platform-top base, so each world can pair a grounded floor material with candy-colored traversal surfaces.
+- Added `level3d.visual.test.ts` regression coverage for the scene-graph and configured walkable-surface color rules; focused gate is 3/3 green.
+
+### Verification
+- Required web-game Playwright loop: move/jump bursts plus targeted captures; screenshots inspected, ridge absent, painted fallback pink, light-oak ground reads as staggered planks, blue elevated tops remain over pink platform bodies, no new browser errors.
+- Full gate green: TypeScript clean, **94 test files / 1008 tests passed**, production Vite build succeeded.
+
+---
+
 ## Session: 2026-07-08 19:20 (Weezy3D session 9 — PAINTED APPROVED → DEFAULT; recipe deepened; props tried-and-cut)
 
 **The quilt terrain passed playtest ("it looks and feels great — it's a pass"), closing the two-round painted-diorama loop.** Two decisions followed immediately: deepen Bedroom with the remaining recipe ingredients BEFORE rolling to worlds 2–5, and make painted the DEFAULT look. All shipped this session, including one full ingredient that was built, playtested, rejected, and replaced within the hour.
@@ -236,69 +283,4 @@ Spec: `docs/superpowers/specs/2026-06-12-3d-enemies-companions-design.md` · Pla
 1. **Feel-playtest all four new worlds by hand** — fog/light knobs are per-world consts at the top of each `<world>Set.ts`.
 2. Port enemies (§5.1 — billboards + patrol physics; biggest remaining gap to "playable game in 3D").
 3. Per-level hero-object variation within worlds + the Playhouse arena backdrop with the boss port (§5.3 leftovers).
-
----
-
-## Session: 2026-06-09 (Weezy3D — first playable level in 3D; Three.js renderer port, Bedroom Level 1)
-
-**Goal met:** **Bedroom Level 1 is playable in 3D** at `http://localhost:5173/3d.html` — a side-scrolling Three.js diorama (the "scrolling diorama / HD-2D" pattern from `docs/3d-transition/2d-to-3d-guide.md`) over the **same level data and the same physics constants** as the 2D game. Storybook-billboard Eloise walks, jumps, collects star tokens, and reaches a glowing exit door inside a fully lit, fogged, procedurally-dressed 3D bedroom (per `docs/art-direction/scenery-prompt-library.md` World 1). The 2D game is untouched — `/3d.html` is a third Vite entry beside `/` and `/maps.html`.
-
-### Architecture (what carried, what's new)
-- **Carried verbatim:** `PHYSICS` constants, `LevelData` + Zod parsing + `scaleLevelData`, `BEDROOM_LEVELS[0]` (sketch→encode pipeline output). Zero changes to existing files except `vite.config.ts` (multipage build inputs).
-- **New `src/three/` (renderer-parallel, no Phaser imports):**
-  - `physics3d.ts` — pure AABB platformer physics (the bossFight/reachability pure-logic pattern), simulating in render-px y-down space; ports asymmetric gravity (600/400/900), coyote 100ms, buffer 100ms, variable cut 0.5, air-blend horizontal. **13 unit tests** pin the arc to the 2D envelope (apex 70–92 design px), coyote/buffer windows, wall/ceiling/landing resolution.
-  - `coords.ts` — the single 2D↔3D conversion boundary: 1 world unit = 1 sketch grid (64 render px), floor top at world y=0.
-  - `input.ts` — keyboard → FrameInput with edge accumulation; **repeat keydowns never establish held state** (guards against host/preview browsers with a stuck key emitting repeat-only events — observed live in the IDE preview).
-  - `playerView.ts` — Eloise as camera-facing billboard plane (Option A / HD-2D from the guide) using the 8 storybook PNGs; ports `computeFeetOriginY`'s bottom-alpha scan so feet plant on platforms; walk anim 10fps, jump pose airborne, mirror-flip facing; **ground-cast shadow blob** (analytic raycast to highest solid below).
-  - `level3d.ts` — LevelData → meshes: floor segments as deep carpet-textured boxes, shelves as wooden boxes + trim lip, tokens as spinning/bobbing extruded gold stars, exit as a glowing storybook door (frame + emissive pane + breathing PointLight + spinning star).
-  - `bedroomSet.ts` — World 1 set dressing, all procedural in the locked palette (dusty rose/cream/sage/butter/wood): polka-dot wallpaper far plane, cool windows w/ light pools, bookshelf landmarks with palette book rows, alphabet blocks/balls/foreground crayons (deterministic LCG scatter), warm key light (casts real platform shadows, follows player), cool window fill, lamp pools, cream fog `0xf5e8d0`.
-  - `hud.ts` (DOM token counter / controls hint / win card + replay), `main.ts` (boot, camera follow with ported look-ahead, pickups, exit, kill-plane, debug handle `__weezy3d` incl. `setSimInput` for browser-driven verification).
-
-### Verification (all green, browser-proven)
-- `npm run build` passes: tsc clean + **340 tests** (327 + 13 new) + vite multipage build.
-- Driven in-browser via `__weezy3d.setSimInput`: walk (vx=250 render px/s), **jump apex 74 design px from floor** (envelope match), token pickups count up, **full run → exit at x≈5562 → win card → Play again resets** — zero console errors.
-- Screenshots confirmed: billboard Eloise with planted feet, platform shadows on carpet, bookshelf/wallpaper/window depth layers, glowing door light pool.
-
-### Issues encountered
-- **`node_modules/.bin` shims were all broken** (regular files instead of symlinks — artifact of this repo being a cp-copy of Weezy2). `rm -rf node_modules && npm install` fixed.
-- **Phantom held ArrowRight from the preview browser** (repeat-only keydown stream, no initial press) made Eloise self-walk. Fixed in `input.ts` (repeats can't establish held state) — also a real-world robustness win.
-- `justJumped`/`justLanded` were erased by physics substepping — flags now accumulate across substeps (caught by the new tests).
-
-### Next session could
-1. **Feel-playtest** the 3D level by hand (camera height/distance, fog density, light intensities are all tuneable knobs in `bedroomSet.ts`/`main.ts`).
-2. Port enemies (dust bunnies as billboards + patrol physics) → levels 2–5 of Bedroom playable.
-3. Level select / next-level chaining (`BEDROOM_LEVELS[1..4]` already encode; only enemy port blocks them).
-4. Depth-of-field pass (EffectComposer + BokehPass) for the macro-photography blur the guide calls out; dust-mote particles in the lamp light.
-
----
-
-## Session: 2026-06-07 (Phase 7.3.5 — Scripted Cutscene System; BUILT — engine + all 5 power intros)
-
-**Goal met:** The **scripted cutscene system** (ROADMAP 7.3.5) is built — a reusable engine + all 5 power-intro cutscenes, replacing the static `PowerUnlockScene` modal. When Eloise meets a companion, a card dims the game, the companion bounces in and demonstrates its signature move on a little stage (looping tween), and the power is named — hybrid auto-play (beats auto-advance; tap hurries; `skip ▸` bails). Designed so ROADMAP 7.4 (intro) / 7.5 (ending) reuse the engine. Flow: brainstorm (visual companion, Direction C chosen) → spec → plan → subagent-driven execution (per-task implementer + two-stage spec/quality review, controller-verified on disk) → runtime smoke → final holistic review (SHIP IT). Spec: `docs/superpowers/specs/2026-06-07-cutscene-system-design.md`; plan: `docs/superpowers/plans/2026-06-07-cutscene-system.md`.
-
-### Design decisions (the brainstorm)
-- **Direction C — "card + live mini-demo"**: a modal framed card with a looping diorama where the companion really performs the move (over A: static motion arrows; B: in-world cinematic — rejected for coupling cutscenes to level geometry + physics). Fully decoupled from level geometry.
-- **Hybrid auto-play pacing**: beats auto-advance by duration; a tap hurries to the next beat; a `skip ▸` button bails — meets "<10s, skippable" for non-readers.
-- **Approach 1 — pure sequencer + tween-rendered beats**: a Phaser-free timeline controller (the bossFight pattern, unit-testable) + scripted demo tweens of the existing idle sprites (over a mini-physics sandbox or pre-baked spritesheets).
-- **Scope**: engine + 5 power intros; 7.4/7.5 are separate specs reusing the engine via a `page`/`clear`/`fade` beat-kind seam; in-level button prompts kept.
-
-### Completed (commits f728cd8 → 1d8fe6f, on main)
-- **`src/systems/cutscene.ts` pure timeline controller** (TDD, 10 tests): `CutsceneBeat`/`CutsceneScript`/`DemoMotion` types + `init`/`advance`/`skipBeat`/`skipAll`/`currentBeat`; transitions exactly at duration boundaries, carries remainder across beats, done past the last beat. Phaser-free.
-- **`src/config/cutscenes.ts` scripts** (TDD, 6 tests): `powerIntroScript(type)` builds the 5-beat shape (enter→caption→demo→title→hold, ~7s, ≤10s asserted) from `COMPANIONS`+`ABILITIES`+`COMPANION_LABELS`; exhaustive `POWER_INTRO_MOTION: Record<CompanionType, DemoMotion>`.
-- **`src/scenes/CutsceneScene.ts`** (one-pass author): thin shell — additive card (elements persist across beats → builds up), companion bounce/fade entrance, 5 demo tweens (doubleHop/dash/climb/charge/glide), caption + title pop, `skip ▸` UI, SHUTDOWN teardown, `cutscene-complete` emit, `standalone` dev path, exhaustiveness `never`-guards on both render switches.
-- **Integration**: `GameScene` `companion-collected` hook now launches `CutsceneScene` (identical pause/resume) and disables BOTH GameScene + UIScene keyboards during it; registered in `main.ts`; `eloiseLoadCutscene(type)` dev helper; `PowerUnlockScene.ts` deleted.
-- **Docs**: ROADMAP 7.3.5 → `[x]`; CLAUDE.md Current Status entry; spec synced (dropped vestigial `loops`).
-
-### Verification
-`npm run build` green: **327 tests** (311 at session start → +16: 10 controller + 6 scripts), tsc clean, reachability lint over the 25 catalog levels unchanged, texture smoke, vite ok. **Runtime-smoked** (dev preview): all 5 intros render the card + correct companion sprite; full auto-advance→complete→standalone-return cycle (teddy); `skip ▸` bails; **zero console errors**. Final holistic review: **SHIP IT** (no Critical/Important).
-
-### Issues Encountered (two real bugs caught in code review, both fixed)
-- **ESC punched through the pause gate** — `GameScene` `keydown-ESC→togglePause` isn't gated on `paused`, so ESC during the cutscene resumed gameplay under the card. Fixed: cutscene ignores ESC + GameScene keyboard disabled during it.
-- **UIScene's hidden pause-menu was navigable during the cutscene** — UIScene's UP/DOWN/ENTER are gated only on `GameState.paused` (true during the cutscene), so a blind DOWN+ENTER hit `returnToMainMenu()` and orphaned the cutscene on the menu. Fixed: disable UIScene's keyboard too. Saved as project memory `project_modal_scene_pause_keyboard_gotcha` (7.4/7.5 overlays will hit it).
-- A code-review "infinite-loop on zero-duration beat" finding was a **false positive** (the loop's `beatIndex` advances every iteration) — vetted, not applied.
-
-### Next Session Should
-1. **Human feel-playtest the cutscenes** (the one thing automation can't do): `eloiseLoadCutscene("teddy"|"dog"|"cat"|"horse"|"flamingo")` or play to a companion. Tune the **companion sprite scale** (`0.09 * S` reads big for Teddy/Flamingo — head clips the card top — and small for Dog; varies per source PNG) and the **demo tween choreography/timing**.
-2. **ROADMAP 7.4 (intro)** then **7.5 (ending)** — author content for the cutscene engine via the `page`/`clear`/`fade` beat-kind seam (each its own short spec). The ending already has all 5 companions on screen + `worldComplete` from the boss.
-3. The real **tamed T-Rex sprite (7.2)** art pass, then **7.6 full playtest** → V1 to itch.io.
 
